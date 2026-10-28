@@ -43,7 +43,7 @@ All checks must print `ok`. Look at `tests/screenshots/` for desktop and iPhone 
 
 ## Roadmap (ideas, in rough priority order)
 
-Done: search, sort, auto categories, origins (1.1); favourites, rename, copy, send, undo delete, duplicate check, paste, instant preview, new name and design (1.2); production hardening, CI (1.3); shared clipboard tab (1.4). Removed in 1.2 on purpose: iOS Shortcut and Android share target (owner didn't want them).
+Done: search, sort, auto categories, origins (1.1); favourites, rename, copy, send, undo delete, duplicate check, paste, instant preview, new name and design (1.2); production hardening, CI (1.3); shared clipboard tab (1.4); full redesign with red header, favourite cards, floating upload, sidebar on laptops, clickable links in clips (3.0). Removed in 1.2 on purpose: iOS Shortcut and Android share target (owner didn't want them).
 
 1. **Expiry reminders** - optional expiry date per file in `state.json` (passport, visa, residence permit, insurance); a "Due soon" chip and a banner 60/30/7 days before.
 2. **Recent** - "Recently opened" chip from a per-device list (localStorage), so the last few files are one tap away.

@@ -8,7 +8,7 @@ import { readFileSync } from "fs";
 const IMG = new URL("../docs/images/", import.meta.url).pathname;
 const uri = (file, type = "image/png") => `data:${type};base64,${readFileSync(file).toString("base64")}`;
 const raw = (n) => uri(IMG + "raw/" + n + ".png");
-const FONT = uri(new URL("../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-standard-normal.woff2", import.meta.url).pathname, "font/woff2");
+const FONT = uri(new URL("../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2", import.meta.url).pathname, "font/woff2");
 const ICON = uri(new URL("../assets/icon.svg", import.meta.url).pathname, "image/svg+xml");
 
 // Bandhani: four white dots around a haldi centre, like the strip in the app
@@ -20,8 +20,9 @@ const CSS = `
 * { box-sizing: border-box; margin: 0; }
 body { font-family: Bricolage, sans-serif; -webkit-font-smoothing: antialiased; }
 .stage { position: relative; overflow: hidden; }
-.red { background: #a3201b; color: #fff; }
-.dots { position: absolute; inset: 0; background-image: ${bandhani("#fff", "#e3a21a", 0.55)};
+.red { background: #faf6f4; color: #1c1414; }
+.red p { color: #5e5350; opacity: 1 !important; }
+.dots { position: absolute; inset: 0; background-image: ${bandhani("#a3201b", "#e3a21a", 0.5)};
         -webkit-mask-image: radial-gradient(ellipse 55% 75% at 0% 100%, #000 0%, transparent 70%); }
 .window { position: absolute; background: #fff; border-radius: 14px; overflow: hidden;
           box-shadow: 0 2px 0 rgba(0,0,0,.04), 0 30px 80px rgba(40,6,4,.35); }
@@ -49,7 +50,7 @@ const pages = {
   hero: { w: 1600, h: 860, html: `<div class="stage red" style="width:1600px;height:860px">
     <div class="dots"></div>
     <div style="position:absolute;left:96px;top:92px;width:500px">
-      <img src="${ICON}" style="width:76px;height:76px;border-radius:18px;box-shadow:0 0 0 3px rgba(255,255,255,.25)">
+      <img src="${ICON}" style="width:76px;height:76px;border-radius:18px;box-shadow:0 10px 24px rgba(120,18,12,.25)">
       <h1 style="font-size:84px;line-height:.98;font-weight:700;letter-spacing:-2.5px;margin-top:34px">a really<br>helpful tool</h1>
       <p style="font-size:27px;line-height:1.35;font-weight:400;margin-top:26px;opacity:.88">Your passport, CV and contracts on every device. A shared clipboard between laptop and phone. Private, free, and all on GitHub.</p>
     </div>
@@ -74,7 +75,7 @@ const pages = {
   "social-preview": { w: 1280, h: 640, html: `<div class="stage red" style="width:1280px;height:640px">
     <div class="dots"></div>
     <div style="position:absolute;left:84px;top:96px;width:620px">
-      <img src="${ICON}" style="width:84px;height:84px;border-radius:20px;box-shadow:0 0 0 3px rgba(255,255,255,.25)">
+      <img src="${ICON}" style="width:84px;height:84px;border-radius:20px;box-shadow:0 10px 24px rgba(120,18,12,.25)">
       <h1 style="font-size:92px;line-height:.96;font-weight:700;letter-spacing:-3px;margin-top:38px">a really<br>helpful tool</h1>
       <p style="font-size:30px;line-height:1.3;margin-top:28px;opacity:.88">Private documents and a shared clipboard on every device. No server, no bill.</p>
     </div>

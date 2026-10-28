@@ -97,6 +97,34 @@ export function clipLink(text) {
   }
 }
 
+/**
+ * Split a clip into plain text and links, so every web address in it can be
+ * tapped, also inside a sentence: "see https://x.com, thanks" ->
+ *   [{text:"see "}, {text:"https://x.com", href:"https://x.com/"}, {text:", thanks"}]
+ * Only http(s) and www. addresses become links; trailing punctuation stays text.
+ */
+export function linkParts(text) {
+  const parts = [];
+  const re = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    let url = m[0];
+    // "(see https://x.com/a)." -> keep ")." outside the link, but keep balanced (...) inside
+    while (/[.,;:!?)\]}'"]$/.test(url)) {
+      if (url.endsWith(")") && (url.match(/\(/g) || []).length >= (url.match(/\)/g) || []).length) break;
+      url = url.slice(0, -1);
+    }
+    const href = clipLink(url);
+    if (!href) continue;
+    if (m.index > last) parts.push({ text: text.slice(last, m.index) });
+    parts.push({ text: url, href });
+    last = m.index + url.length;
+    re.lastIndex = last;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}
+
 /** "just now", "5 min ago", "3 h ago", "Yesterday 14:05", "12 Oct". */
 export function clipAge(iso, now = new Date()) {
   if (!iso) return "";

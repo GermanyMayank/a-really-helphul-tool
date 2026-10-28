@@ -45,7 +45,7 @@ put(".app/state.json", Buffer.from(JSON.stringify({ version: 1, favorites: ["fil
 const clip = (text, device, minAgo) => ({ id: "c" + minAgo, text, device, at: new Date(Date.now() - minAgo * 6e4).toISOString() });
 put(".app/clipboard.json", Buffer.from(JSON.stringify({ version: 1, items: [
   clip("https://jobs.example.com/systems-engineer-munich", "Windows PC", 1),
-  clip("Termin Bürgeramt, Thursday 14:30, bring passport + Meldebescheinigung", "iPhone", 26),
+  clip("Termin Bürgeramt, Thursday 14:30. Details: www.berlin.de/termin", "iPhone", 26),
   clip("Booking code: K7Q2MX", "Windows PC", 95),
   clip("Notes from the call\n- start date: 1 January\n- 3 days office, 2 days remote\n- send Zeugnisse by Friday\n- ask about the Deutschlandticket Job\n- second round with the team lead", "Windows PC", 240),
   clip("Hauptstraße 12, 80331 München", "iPhone", 2000),

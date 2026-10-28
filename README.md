@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="120 browser checks" src="https://img.shields.io/badge/browser_checks-120-a3201b" />
+  <img alt="136 browser checks" src="https://img.shields.io/badge/browser_checks-136-a3201b" />
   <img alt="Runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-a3201b" />
   <img alt="Hosting" src="https://img.shields.io/badge/hosting-GitHub_Pages-1c1414" />
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-e3a21a" /></a>
@@ -45,7 +45,7 @@ There is no server and no database. The app is a static page on GitHub Pages, an
 
 Copy something on the laptop, open the Clipboard tab and click **Paste and save** (or just press Ctrl+V). On the phone, tap **Copy** on the top clip. It works the other way round too.
 
-New clips show up within about ten seconds, with the device they came from. Links get an Open button, long notes fold away, and deleting has Undo. Bookmark `.../#clipboard` on your phone's home screen to land straight on it.
+New clips show up within about ten seconds, with the device they came from. Every link in a clip can be tapped, long notes fold away, and deleting has Undo. Bookmark `.../#clipboard` on your phone's home screen to land straight on it.
 
 Clips live in your private vault like your documents, but they are not end-to-end encrypted, so keep bank passwords out of it.
 
@@ -98,11 +98,12 @@ assets/
   blobs.js            file cache, prefetch, duplicate check
   crypto.js           token encryption
   style.css           all styles and colour tokens
+  fonts/              Bricolage Grotesque for headings (SIL OFL)
 scripts/
   build-site.sh       copies the site and cache-busts it for deploy
   screenshots.mjs     README screenshots from a fake vault
   compose-images.mjs  frames them into the README images
-tests/e2e.mjs         120 browser checks against a fake GitHub
+tests/e2e.mjs         136 browser checks against a fake GitHub
 .github/workflows/    test on every push, deploy to Pages when green
 ```
 
@@ -117,7 +118,7 @@ The tests and screenshots fake the whole GitHub API, so no token is needed and n
 
 ## Design
 
-White first, with small touches from Saurashtra and Kathiyawad in Gujarat: a thin strip of **bandhani** (the tie-dye dots of Jamnagar), **kumkum** red `#a3201b` and **haldi** yellow `#e3a21a`, and a bandhani ring around the logo. The colours are tokens at the top of `assets/style.css`.
+Bold and warm, taken from Saurashtra and Kathiyawad in Gujarat. Every screen opens with a **kumkum** red header (`#a3201b`) printed with **bandhani**, the tie-dye dots of Jamnagar, and hemmed with a bandhani strip. **Haldi** yellow (`#e3a21a`) marks the things you reach for: Upload, Copy, a new clip. Text is ink on warm cotton white, and headings are set in Bricolage Grotesque. The colours are tokens at the top of `assets/style.css`.
 
 ## Ideas for next versions
 

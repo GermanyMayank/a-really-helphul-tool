@@ -6,7 +6,7 @@
   <!-- Strict CSP: only our own files, and network access only to the GitHub API -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; frame-src blob:; connect-src https://api.github.com; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#a3201b" />
   <meta name="robots" content="noindex" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Helpful" />
@@ -14,73 +14,78 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/icon-180.png" />
+  <link rel="preload" href="assets/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
   <!-- ============ LOCK SCREEN ============ -->
   <main id="lock" class="lock" hidden>
     <div class="lock-card">
-      <div class="lock-mark"><img src="assets/icon.svg" alt="" class="logo" width="64" height="64" /></div>
+      <div class="lock-mark"><img src="assets/icon.svg" alt="" class="logo" width="88" height="88" /></div>
       <h1>a really helpful tool</h1>
-      <p class="muted" id="lock-hint">Enter your password to open your documents.</p>
-      <form id="lock-form" autocomplete="on">
+      <p class="lock-hint" id="lock-hint">Enter your password to open your documents.</p>
+      <form id="lock-form" class="lock-panel" autocomplete="on">
         <!-- hidden username helps password managers remember the entry -->
         <input type="text" name="username" value="helpful-tool" autocomplete="username" hidden />
+        <label for="lock-input" class="field-label">Password</label>
         <input id="lock-input" class="input" type="password" autocomplete="current-password" placeholder="Password" required />
         <label class="check"><input id="remember" type="checkbox" checked /> Remember this device</label>
-        <button class="btn btn-primary btn-block" id="lock-btn" type="submit">Unlock</button>
+        <button class="btn btn-ink btn-block" id="lock-btn" type="submit">Unlock<span class="haldi-dot" aria-hidden="true"></span></button>
         <p class="error" id="lock-error" role="alert"></p>
       </form>
+      <p class="lock-foot">Your files stay in your own private GitHub repo.</p>
     </div>
   </main>
 
   <!-- ============ MAIN APP ============ -->
   <div id="app" hidden>
-    <header class="topbar">
-      <div class="brand"><img src="assets/icon.svg" alt="" width="28" height="28" /> <span class="truncate">a really helpful tool</span></div>
-      <div class="topbar-actions">
-        <button class="icon-btn" id="refresh-btn" title="Refresh" aria-label="Refresh">
-          <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
-        </button>
-        <button class="icon-btn" id="logout-btn" title="Lock this device" aria-label="Lock this device">
-          <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        </button>
+    <header class="hero">
+      <div class="hero-inner">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark"><img src="assets/icon.svg" alt="" width="30" height="30" /></span><span class="truncate">a really helpful tool</span></div>
+          <div class="topbar-actions">
+            <button class="icon-btn" id="refresh-btn" title="Refresh" aria-label="Refresh">
+              <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+            </button>
+            <button class="icon-btn" id="logout-btn" title="Lock this device" aria-label="Lock this device">
+              <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="hero-head">
+          <div class="hero-text">
+            <h1 id="view-title">Documents</h1>
+            <p class="hero-sub" id="view-sub"></p>
+          </div>
+          <!-- Upload: a pill here on laptops, a floating button on phones -->
+          <label class="btn btn-upload" id="upload-btn">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+            <span>Upload<span class="wide-only"> documents</span></span>
+            <input id="file-input" type="file" multiple hidden />
+          </label>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Sections">
+          <button class="tab" role="tab" id="tab-docs" data-view="docs" aria-controls="docs-view" aria-selected="true" type="button">
+            <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Documents
+          </button>
+          <button class="tab" role="tab" id="tab-clips" data-view="clips" aria-controls="clip-view" aria-selected="false" type="button" tabindex="-1">
+            <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6"/></svg>Clipboard<span class="tab-dot" id="clip-dot" hidden><span class="sr-only">(new)</span></span>
+          </button>
+        </div>
       </div>
+      <!-- bandhani hem (Jamnagar tie-dye dots), purely decorative -->
+      <div class="bandhani" aria-hidden="true"></div>
     </header>
-    <!-- bandhani border (Jamnagar tie-dye dots), purely decorative -->
-    <div class="bandhani" aria-hidden="true"></div>
     <div class="offline" id="offline" hidden>You're offline. Files you opened before still work.</div>
 
     <main class="container">
       <!-- Two sections: your documents, and a clipboard shared between devices -->
-      <div class="tabs" role="tablist" aria-label="Sections">
-        <button class="tab" role="tab" id="tab-docs" data-view="docs" aria-controls="docs-view" aria-selected="true" type="button">
-          <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Documents
-        </button>
-        <button class="tab" role="tab" id="tab-clips" data-view="clips" aria-controls="clip-view" aria-selected="false" type="button" tabindex="-1">
-          <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6"/></svg>Clipboard<span class="tab-dot" id="clip-dot" hidden><span class="sr-only">(new)</span></span>
-        </button>
-      </div>
-
       <section id="docs-view" role="tabpanel" aria-labelledby="tab-docs">
-        <!-- Upload: button, drop files anywhere, or paste -->
-        <section class="dropzone">
-          <label class="btn btn-primary btn-upload">
-            <svg viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
-            Upload documents
-            <input id="file-input" type="file" multiple hidden />
-          </label>
-          <p class="muted small desktop-only">or drop files anywhere, or paste with Ctrl+V</p>
-        </section>
-
-        <!-- Upload progress -->
-        <ul id="queue" class="queue" aria-live="polite"></ul>
-
         <!-- Search + sort -->
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input id="search" class="input" type="search" placeholder="Search: passport, pdf, iphone…" autocomplete="off" enterkeyhint="search" />
+            <input id="search" class="input" type="search" placeholder="Search documents" autocomplete="off" enterkeyhint="search" />
           </div>
           <select id="sort" class="select" aria-label="Sort by">
             <option value="newest">Newest</option>
@@ -90,19 +95,29 @@
           </select>
         </div>
 
+        <!-- Upload progress -->
+        <ul id="queue" class="queue" aria-live="polite"></ul>
+
         <!-- Favourites + auto categories -->
         <nav id="chips" class="chips" aria-label="Categories"></nav>
 
-        <ul id="file-list" class="file-list"></ul>
-        <div id="empty" class="empty" hidden>
-          <p>No documents yet.</p>
-          <p class="muted small">Upload something and it will show up on every device.</p>
+        <div class="doc-main">
+          <section id="favs" class="favs" aria-labelledby="favs-title" hidden>
+            <h2 class="section-title" id="favs-title">Favourites</h2>
+            <div id="fav-grid" class="fav-grid"></div>
+          </section>
+          <h2 class="section-title" id="all-title" hidden>All documents</h2>
+          <ul id="file-list" class="file-list"></ul>
+          <div id="empty" class="empty" hidden>
+            <p>No documents yet.</p>
+            <p class="muted small">Upload something and it will show up on every device.</p>
+          </div>
+          <div id="no-results" class="empty" hidden>
+            <p id="no-results-text"></p>
+            <button class="btn btn-ghost" id="clear-search" type="button">Show all documents</button>
+          </div>
+          <div id="loading" class="loading" hidden><span class="spinner"></span> Loading…</div>
         </div>
-        <div id="no-results" class="empty" hidden>
-          <p id="no-results-text"></p>
-          <button class="btn btn-ghost" id="clear-search" type="button">Show all documents</button>
-        </div>
-        <div id="loading" class="loading" hidden><span class="spinner"></span> Loading…</div>
       </section>
 
       <!-- ============ CLIPBOARD ============ -->

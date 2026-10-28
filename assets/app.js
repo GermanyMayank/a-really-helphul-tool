@@ -15,7 +15,7 @@ import { decryptToken } from "./crypto.js";
 import { ALL_CATEGORIES, categorize, kindOf, extOf, canPreview, searchFiles, sortFiles, thisDevice, formatDate } from "./organize.js";
 import { cachedMeta, rememberMeta, resolveMeta } from "./meta.js";
 import { SharedState, clearLocalState } from "./state.js";
-import { Clipboard, MAX_CLIPS, clipLink, clipAge, normalizeClip, clearLocalClips } from "./clips.js";
+import { Clipboard, MAX_CLIPS, clipLink, linkParts, clipAge, normalizeClip, clearLocalClips } from "./clips.js";
 import { getBlob, prefetch, isReady, readyBlob, rememberBlob, clearBlobs, gitBlobSha } from "./blobs.js";
 
 const $ = (id) => document.getElementById(id);
@@ -176,6 +176,12 @@ function renderFiles() {
   const ordered = [...sorted.filter((f) => f.fav), ...sorted.filter((f) => !f.fav)];
 
   $("file-list").replaceChildren(...ordered.map(fileRow));
+  // Favourites as big cards above the list, on the plain "All" view only
+  const favs = view.category === "all" && !view.query ? ordered.filter((f) => f.fav).slice(0, 4) : [];
+  $("fav-grid").replaceChildren(...favs.map(favCard));
+  $("favs").hidden = favs.length === 0;
+  $("all-title").hidden = favs.length === 0;
+  updateHero();
   $("empty").hidden = files.length > 0;
   const none = files.length && !ordered.length;
   $("no-results").hidden = !none;
@@ -212,6 +218,26 @@ function renderChips(all, found) {
 
 const HEART = '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>';
 const DOTS = '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>';
+
+// A favourite as a card: the big, tappable way to reach your most-used files
+function favCard(f) {
+  const kind = kindOf(f.name);
+  const b = el("button", "fav-card");
+  b.type = "button";
+  const previewable = canPreview(f.name);
+  b.title = previewable ? `Preview ${f.name}` : `Options for ${f.name}`;
+  const top = el("span", "fav-top");
+  top.append(el("span", `fav-icon ${kind.cls}`, kind.label));
+  const heart = el("span", "fav-heart");
+  heart.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${HEART}</svg>`;
+  top.append(heart);
+  const text = el("span", "fav-text");
+  text.append(el("span", "fav-name truncate", f.name), el("span", "fav-meta truncate", [f.category.label, f.device].filter(Boolean).join(", ")));
+  b.append(top, text);
+  b.addEventListener("click", () => (previewable ? preview(f) : openMenu(f, b)));
+  if (previewable) b.addEventListener("pointerenter", () => prefetch(vault, f), { once: true });
+  return b;
+}
 
 function fileRow(f) {
   const kind = kindOf(f.name);
@@ -685,6 +711,8 @@ function setView(name, { focus = false } = {}) {
   });
   $("docs-view").hidden = currentView !== "docs";
   $("clip-view").hidden = currentView !== "clips";
+  document.body.dataset.view = currentView;
+  updateHero();
   local.set(VIEW_KEY, currentView);
   // keep the address bookmarkable: .../#clipboard opens straight here
   const hash = currentView === "clips" ? "#clipboard" : "";
@@ -696,6 +724,18 @@ function setView(name, { focus = false } = {}) {
     refreshClips();
   }
   scheduleClipPoll();
+}
+
+// The red header names the section and how much is in it
+function updateHero() {
+  const docs = currentView === "docs";
+  $("view-title").textContent = docs ? "Documents" : "Clipboard";
+  const n = docs ? files.length : clips?.items.length ?? 0;
+  const noun = docs ? "document" : "clip";
+  const count = `${n} ${noun}${n === 1 ? "" : "s"}`;
+  $("view-sub").textContent = docs
+    ? `${count}${matchMedia("(hover: hover)").matches ? ". Drop files anywhere or paste with Ctrl+V." : ", on all your devices."}`
+    : `${count}, on all your devices.`;
 }
 
 document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
@@ -725,6 +765,7 @@ function renderClips() {
   $("clip-count").textContent = `${items.length} clip${items.length === 1 ? "" : "s"}. The newest ${MAX_CLIPS} are kept.`;
   markLongClips();
   updateClipDot();
+  updateHero();
 }
 
 function clipRow(item, latest) {
@@ -733,7 +774,15 @@ function clipRow(item, latest) {
   const link = clipLink(item.text);
 
   const body = el("div", "clip-body");
-  const text = el("p", `clip-text${link ? " is-link" : ""}${openClips.has(item.id) ? " open" : ""}`, item.text);
+  const text = el("p", `clip-text${link ? " is-link" : ""}${openClips.has(item.id) ? " open" : ""}`);
+  text.append(...linkParts(item.text).map((part) => {
+    if (!part.href) return document.createTextNode(part.text);
+    const a = el("a", "clip-link", part.text);
+    a.href = part.href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return a;
+  }));
   body.append(text, el("span", "clip-meta", [item.device, clipAge(item.at)].filter(Boolean).join(" · ")));
 
   const actions = el("div", "clip-actions");

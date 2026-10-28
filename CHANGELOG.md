@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.0.0 (2026-10-28) - new design
+
+A full visual redesign, plus a clipboard fix. No change to how data is stored, so nothing to migrate.
+
+**Design**
+- Kumkum red header on every screen with a bandhani dot field and a bandhani hem; the section name ("Documents", "Clipboard") and a count sit in it in large type
+- Headings in Bricolage Grotesque (SIL OFL 1.1), self-hosted in `assets/fonts/` so the strict CSP stays unchanged
+- Documents | Clipboard is now a segmented control inside the header
+- Search and sort float over the header edge as cards
+- Favourites show as large cards above an "All documents" list
+- Upload is a haldi pill in the header on laptops and a floating button with a haldi ring on phones (hidden on the Clipboard tab)
+- Laptops: categories move into a sidebar next to the list
+- The newest clip is a dark card with a full-width haldi Copy button; older clips form one card below
+- Lock screen is fully red, with the logo in a ring of white and haldi dots and the password in a white card
+- New file type tiles, softer shadows, larger radii; offline notice is now a floating pill; theme colour is kumkum
+
+**Fixes**
+- Links in the clipboard are now clickable: every web address in a clip, also inside a sentence ("details at www.example.com, thanks"), opens in a new tab. Before, only the separate Open button worked, and only when the whole clip was one link.
+
+**Under the hood**
+- `linkParts()` in `clips.js` splits clip text into text and safe http(s) links
+- Tests: 136 checks (link parsing, clickable links in clips, favourite cards, header title and Upload button per tab)
+- README images regenerated from the new design
+
 ## Repo page (2026-10-28)
 
 - New README: hero image, framed phone and laptop screenshots, a Clipboard section, updated file map and test count

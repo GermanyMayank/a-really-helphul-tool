@@ -13,6 +13,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/assets"
 cp index.html setup.html config.js manifest.webmanifest .nojekyll "$OUT/"
 cp assets/*.js assets/*.css assets/*.svg assets/*.png "$OUT/assets/"
+cp -r assets/fonts "$OUT/assets/"
 
 # HTML: <script src="assets/x.js"> and <link href="assets/style.css">
 sed -i -E "s#(src|href)=\"(assets/[^\"?]+\.(js|css))\"#\1=\"\2?v=$VER\"#g" "$OUT"/*.html

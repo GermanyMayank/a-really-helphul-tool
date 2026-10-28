@@ -37,6 +37,10 @@ assert(!org.canPreview("a.pdf", CHROME_ANDROID) && !org.canPreview("a.docx", SAF
 assert(clipsLib.clipLink("https://example.com/a?b=1") === "https://example.com/a?b=1", "clipLink: a web link is a link");
 assert(clipsLib.clipLink("www.attocube.com") === "https://www.attocube.com/", "clipLink: www. gets https://");
 assert(clipsLib.clipLink("javascript:alert(1)") === null && clipsLib.clipLink("see https://x.com") === null, "clipLink: no javascript: links, no links inside sentences");
+assert(JSON.stringify(clipsLib.linkParts("see https://x.com/a, thanks")) === JSON.stringify([{ text: "see " }, { text: "https://x.com/a", href: "https://x.com/a" }, { text: ", thanks" }]), "linkParts: a link inside a sentence, trailing comma stays text");
+assert(clipsLib.linkParts("Termin (www.berlin.de/amt).")[1]?.href === "https://www.berlin.de/amt", "linkParts: www. link inside brackets gets https://");
+assert(clipsLib.linkParts("https://en.wikipedia.org/wiki/Foo_(bar)")[0].href.endsWith("Foo_(bar)"), "linkParts: balanced brackets stay in the link");
+assert(clipsLib.linkParts("javascript:alert(1) and ftp://x").every((p) => !p.href), "linkParts: only http(s) and www. become links");
 assert(clipsLib.normalizeClip("  \r\n line 1\r\nline 2 \n") === "line 1\nline 2", "normalizeClip: trims and unifies line endings");
 const NOW = new Date("2026-10-28T12:00:00Z");
 assert(clipsLib.clipAge("2026-10-28T11:59:40Z", NOW) === "just now" && clipsLib.clipAge("2026-10-28T11:55:00Z", NOW) === "5 min ago", "clipAge: just now, minutes");
@@ -268,8 +272,10 @@ for (const [label, opts, device] of [
   await p.waitForTimeout(400);
   assert(favorites().includes("files/Lebenslauf.docx"), `${label}: favourite saved to the vault (syncs to other devices)`);
   assert((await names(p))[0] === "Lebenslauf.docx", `${label}: favourites pinned to the top`);
+  assert(await p.isVisible("#favs") && (await p.locator(".fav-card .fav-name").allTextContents()).join() === "Lebenslauf.docx", `${label}: favourites show as cards above the list`);
   await p.locator(".chip", { hasText: "Favourites" }).click();
   assert(JSON.stringify(await names(p)) === '["Lebenslauf.docx"]', `${label}: Favourites chip`);
+  assert(await p.isHidden("#favs"), `${label}: favourite cards only on the All view`);
   await p.locator(".chip", { hasText: "All" }).click();
   await p.screenshot({ path: SHOTS + `${label}-2-list.png`, fullPage: true });
 
@@ -348,6 +354,7 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#clip-view:not([hidden])");
   assert(new URL(p.url()).hash === "#clipboard" && (await p.isVisible("#clip-empty")), `${label}: Clipboard tab opens (empty, bookmarkable #clipboard)`);
   assert(await p.isHidden("#docs-view"), `${label}: documents are hidden on the Clipboard tab`);
+  assert((await p.textContent("#view-title")) === "Clipboard" && await p.isHidden("#upload-btn"), `${label}: header says Clipboard, Upload button hidden`);
 
   // save a link from the box
   const LINK = "https://jobs.example.com/offer?id=42";
@@ -370,8 +377,17 @@ for (const [label, opts, device] of [
   await p.waitForFunction(() => document.querySelector("#clip-list .clip.latest .clip-meta")?.textContent.includes("Windows PC"));
   assert((await clipTexts())[0] === "WLAN Passwort: blue-tram-42", `${label}: clip from another device appears on top`);
 
+  // every web address in a clip is a real link, also inside a sentence
+  remoteClip("Appointment details: https://service.berlin.de/termin/123, bring passport");
+  await p.click("#refresh-btn");
+  await p.waitForSelector("#clip-list .clip.latest a.clip-link");
+  assert((await p.getAttribute("#clip-list .clip.latest a.clip-link", "href")) === "https://service.berlin.de/termin/123"
+    && (await p.getAttribute("#clip-list .clip.latest a.clip-link", "target")) === "_blank", `${label}: links inside clip text are clickable and open in a new tab`);
+  assert((await p.textContent("#clip-list .clip.latest .clip-text")) === "Appointment details: https://service.berlin.de/termin/123, bring passport", `${label}: clip text is unchanged around the link`);
+
   // the haldi dot tells you a new clip arrived while on Documents
   await p.click("#tab-docs");
+  assert((await p.textContent("#view-title")) === "Documents" && await p.isVisible("#upload-btn"), `${label}: header says Documents, Upload button back`);
   assert(await p.isHidden("#clip-dot"), `${label}: no dot for clips already seen`);
   remoteClip("Termin Bürgeramt 14:30");
   await p.evaluate(() => window.dispatchEvent(new Event("focus")));
