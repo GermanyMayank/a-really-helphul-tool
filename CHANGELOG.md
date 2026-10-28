@@ -1,5 +1,12 @@
 # Changelog
 
+## Repo page (2026-10-28)
+
+- New README: hero image, framed phone and laptop screenshots, a Clipboard section, updated file map and test count
+- `npm run screenshots` regenerates every README image from a fake vault with example documents (`scripts/screenshots.mjs`, `scripts/compose-images.mjs`); no real data is ever used
+- `docs/images/social-preview.png` for the repo's link preview
+- Old banner and v1.3 screenshots removed
+
 ## 1.4.0 (2026-10-28) - shared clipboard
 
 - New **Clipboard** tab: save text or a link on one device, copy it on another with one tap

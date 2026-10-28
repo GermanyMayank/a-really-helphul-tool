@@ -2,3 +2,4 @@ node_modules/
 tests/screenshots/
 .DS_Store
 _site/
+docs/images/raw/

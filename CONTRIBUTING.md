@@ -27,6 +27,6 @@ For quick edits you can also serve the repo root directly: `python3 -m http.serv
 
 - Keep them focused, one change per PR.
 - CI runs the browser tests on every PR; the site only deploys from `main` when they pass.
-- Screenshots of UI changes (phone and desktop) help a lot. CI uploads the test screenshots as an artifact.
+- Screenshots of UI changes (phone and desktop) help a lot. CI uploads the test screenshots as an artifact. If the change is visible, run `npm run screenshots` to refresh the README images.
 
 New to the code? Start with [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md); it is a map written for humans and AIs alike.
