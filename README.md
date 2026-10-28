@@ -125,4 +125,4 @@ Pinned clips for things you paste every week, sending screenshots from laptop to
 
 ## License
 
-[MIT](LICENSE) © 2026 Jay Gohil
+[MIT](LICENSE) © 2026 Mayank
