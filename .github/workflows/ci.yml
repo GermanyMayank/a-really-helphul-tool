@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npm test 2>&1 | tee test.log || { grep -m1 -E "FAIL|Error|Timeout" test.log | sed 's/^/::error title=Failing check::/'; exit 1; }
+          npm test 2>&1 | tee test.log || { grep -E "^(Error: |[a-zA-Z.]+: Timeout|page\.[a-zA-Z]+: )" test.log | head -2 | sed 's/^/::error title=Failing check::/'; exit 1; }
       - name: Keep screenshots
         if: always()
         uses: actions/upload-artifact@v4
