@@ -566,7 +566,8 @@ for (const [label, opts, device] of [
   assert(inZip.length === docs.length && docs.every(([k, f]) => inZip.some(([n, size]) => "files/" + n === k && size === f.buf.length)), `${label}: backup holds every document, byte for byte (${docs.length} files)`);
   await p.waitForFunction(() => document.getElementById("toast-text").textContent.startsWith("Backup ready"));
   assert(true, `${label}: says the backup is ready`);
-  assert(label === "iphone" ? await p.isVisible("#install-btn") : await p.isHidden("#install-btn"), `${label}: Install app link only where installing works`);
+  // iPhone: always offered (Add to Home Screen). Laptops: only when the browser itself offers install, which differs per Chromium version.
+  if (label === "iphone") assert(await p.isVisible("#install-btn"), "iphone: Install app link is offered");
   if (label === "iphone") {
     await p.click("#install-btn");
     await p.waitForSelector("#install-help:not([hidden])");

@@ -35,7 +35,11 @@ jobs:
         run: ./scripts/build-site.sh _site "${GITHUB_SHA::8}"
       - name: Serve it
         run: python3 -m http.server 8080 --directory _site &
-      - run: npm test
+      - name: Browser tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log || { grep -m1 -E "FAIL|Error|Timeout" test.log | sed 's/^/::error title=Failing check::/'; exit 1; }
       - name: Keep screenshots
         if: always()
         uses: actions/upload-artifact@v4
