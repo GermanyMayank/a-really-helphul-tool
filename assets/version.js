@@ -3,10 +3,17 @@
 // release (also in package.json and CHANGELOG.md); the What's new window opens
 // once on each device after the version changes.
 
-export const VERSION = "4.0.0";
+export const VERSION = "4.1.0";
 
 // Newest first. Plain text only (rendered with textContent).
 export const RELEASES = [
+  {
+    version: "4.1",
+    items: [
+      ["Upload progress", "one bar shows the whole batch: file 2 of 5, percent and time left."],
+      ["Cancel and Retry", "stop a batch any time; a failed file waits with Retry."],
+    ],
+  },
   {
     version: "4.0",
     items: [

@@ -21,6 +21,7 @@ import { getBlob, prefetch, isReady, readyBlob, rememberBlob, clearBlobs, gitBlo
 import { TRASH_FOLDER, TRASH_DAYS, trashName, parseTrashName, isExpired, trashLabel, freeName } from "./trash.js";
 import { VERSION, RELEASES } from "./version.js";
 import { makeZip } from "./zip.js";
+import { sessionProgress, summaryText, isFinished } from "./progress.js";
 
 const $ = (id) => document.getElementById(id);
 const TOKEN_KEY = "docsync.token";
@@ -355,53 +356,160 @@ document.addEventListener("paste", (e) => {
   else toast("Save the pasted text to your clipboard?", false, { label: "Save", run: () => saveClip(text) });
 });
 
-let uploading = Promise.resolve();
-function uploadAll(list, via = "upload") {
-  if (!vault || !list.length) return uploading;
-  const rows = list.map((file) => {
-    const li = el("li", "");
-    li.append(el("span", "spinner"), el("span", "name truncate", file.name), el("span", "state muted", "Waiting"));
-    $("queue").append(li);
-    return { file, li };
-  });
-  // chain onto any upload already running
-  uploading = uploading.then(async () => {
-    let ok = 0;
-    for (const { file, li } of rows) {
-      const state_ = li.querySelector(".state");
-      const finish = (cls, text, ms) => {
-        li.className = cls;
-        li.querySelector(".spinner")?.remove();
-        state_.textContent = text;
-        setTimeout(() => li.remove(), ms);
-      };
-      try {
-        if (file.size > MAX_BYTES) throw new Error(`Too large (max ${config.maxFileMB || 25} MB)`);
-        // Same bytes already in the vault? Don't store it twice.
-        const sha = await gitBlobSha(file);
-        const twin = files.find((f) => f.sha === sha);
-        if (twin) { finish("ok", `Already saved as ${twin.name}`, 6000); continue; }
+// One worker sends files one at a time; everything dropped, pasted or picked
+// while it runs joins the same session, so the bar covers all of it.
+// Each item: {file, via, size, state, sent, li} (states: see progress.js).
+let upItems = [];        // this session, in order
+let upRunning = null;    // Promise while the worker runs
+let upAbort = null;      // AbortController for the file being sent right now
+let upStarted = 0;       // when this session began (for time left)
+let upHideTimer = null;
 
-        state_.textContent = "Uploading";
-        const name = cleanName(file.name);
-        const base64 = await readBase64(file);
-        const saved = await vault.upload(name, base64, `${DEVICE}, ${via}`);
-        rememberMeta(saved.path, saved.sha, { date: new Date().toISOString(), device: DEVICE, via });
-        rememberBlob(saved.sha || sha, file);
-        finish("ok", saved.name === name ? "Done" : `Saved as ${saved.name}`, 4000);
-        ok++;
-      } catch (err) {
-        finish("fail", friendlyError(err), 10000);
-        if (err.status === 401) return handleError(err);
-      }
-    }
-    if (ok) {
-      toast(`${ok} file${ok > 1 ? "s" : ""} uploaded`);
-      await loadFiles({ quiet: true });
-    }
-  });
-  return uploading;
+function uploadAll(list, via = "upload") {
+  if (!vault || !list.length) return upRunning || Promise.resolve();
+  clearTimeout(upHideTimer);
+  if (!upRunning && upItems.every(isFinished)) {
+    // a new session starts from an empty bar, without sliding back from the last one
+    upItems = [];
+    upStarted = Date.now();
+    const fill = $("upbar-fill");
+    fill.classList.add("instant");
+    fill.style.width = "0%";
+    void fill.offsetWidth;
+    fill.classList.remove("instant");
+  }
+  for (const file of list) upItems.push(queueRow({ file, via, size: file.size, state: "waiting", sent: 0 }));
+  renderUpBar();
+  announce(`Uploading ${list.length} file${list.length > 1 ? "s" : ""}`);
+  if (!upRunning) upRunning = runUploads().finally(() => { upRunning = null; });
+  return upRunning;
 }
+
+async function runUploads() {
+  let ok = 0;
+  let item;
+  while ((item = upItems.find((i) => i.state === "waiting"))) {
+    const result = await uploadOne(item);
+    if (result === "auth") return;
+    if (result === "ok") ok++;
+  }
+  const p = sessionProgress(upItems, upStarted);
+  renderUpBar(true);
+  if (upItems.some((i) => i.state !== "cancelled")) announce(summaryText(p, true));
+  upHideTimer = setTimeout(() => { $("upbar").hidden = true; }, p.failed ? 6000 : 2500);
+  if (ok) {
+    toast(`${ok} file${ok > 1 ? "s" : ""} uploaded`);
+    await loadFiles({ quiet: true });
+  }
+}
+
+async function uploadOne(item) {
+  const { file, via } = item;
+  setItem(item, "preparing", "Preparing");
+  try {
+    if (file.size > MAX_BYTES) throw new Error(`Too large (max ${config.maxFileMB || 25} MB)`);
+    // Same bytes already in the vault? Don't store it twice.
+    const sha = await gitBlobSha(file);
+    if (item.state === "cancelled") return "cancelled";
+    const twin = files.find((f) => f.sha === sha);
+    if (twin) { finishItem(item, "skipped", `Already saved as ${twin.name}`, 6000); return "skip"; }
+
+    const name = cleanName(file.name);
+    const base64 = await readBase64(file);
+    if (item.state === "cancelled") return "cancelled";
+    upAbort = new AbortController();
+    setItem(item, "uploading", "Uploading 0%");
+    const saved = await vault.upload(name, base64, `${DEVICE}, ${via}`, {
+      signal: upAbort.signal,
+      onProgress: (loaded, total) => {
+        if (item.state !== "uploading") return;
+        item.sent = total ? loaded / total : 1;
+        if (item.sent >= 1) setItem(item, "saving", "Saving on GitHub");
+        else setItem(item, "uploading", `Uploading ${Math.floor(item.sent * 100)}%`);
+      },
+    });
+    rememberMeta(saved.path, saved.sha, { date: new Date().toISOString(), device: DEVICE, via });
+    rememberBlob(saved.sha || sha, file);
+    finishItem(item, "done", saved.name === name ? "Done" : `Saved as ${saved.name}`, 4000);
+    return "ok";
+  } catch (err) {
+    if (err.name === "AbortError" || item.state === "cancelled") { finishItem(item, "cancelled", "Cancelled", 0); return "cancelled"; }
+    finishItem(item, "failed", friendlyError(err), 0);
+    if (err.status === 401) { handleError(err); return "auth"; }
+    return "failed";
+  } finally {
+    upAbort = null;
+  }
+}
+
+// ----- one row per file in #queue -----
+function queueRow(item) {
+  const li = el("li", "waiting");
+  const bar = el("span", "qbar");
+  bar.append(el("span", "qbar-fill"));
+  li.append(el("span", "spinner"), el("span", "name truncate", item.file.name), el("span", "state muted", "Waiting"), bar);
+  $("queue").append(li);
+  item.li = li;
+  return item;
+}
+
+function setItem(item, state, text) {
+  item.state = state;
+  item.li.className = state;
+  item.li.querySelector(".state").textContent = text;
+  const frac = state === "uploading" ? item.sent : state === "saving" ? 1 : 0;
+  item.li.querySelector(".qbar-fill").style.transform = `scaleX(${frac})`;
+  renderUpBar();
+}
+
+function finishItem(item, state, text, ms) {
+  setItem(item, state, text);
+  item.li.querySelector(".spinner")?.remove();
+  item.li.querySelector(".qbar")?.remove();
+  if (state === "failed") {
+    // stays until you retry or dismiss it
+    const retry = el("button", "link-btn retry", "Retry");
+    retry.type = "button";
+    retry.addEventListener("click", () => { item.li.remove(); uploadAll([item.file], item.via); });
+    const close = iconButton(`Dismiss ${item.file.name}`, '<path d="M6 6l12 12M18 6L6 18"/>', () => item.li.remove());
+    item.li.append(retry, close);
+  } else {
+    setTimeout(() => item.li.remove(), ms);
+  }
+}
+
+// ----- the bar -----
+function renderUpBar(finished = false) {
+  if (!upItems.length) return;
+  const p = sessionProgress(upItems, upStarted);
+  if (!finished && !upItems.some((i) => !isFinished(i))) finished = true;
+  if (upItems.every((i) => i.state === "cancelled")) { $("upbar").hidden = true; return; }
+  $("upbar").hidden = false;
+  $("upbar").classList.toggle("finished", finished);
+  $("upbar").classList.toggle("has-failed", finished && p.failed > 0);
+  $("upbar-text").textContent = summaryText(p, finished);
+  $("upbar-track").setAttribute("aria-valuenow", String(p.pct));
+  $("upbar-track").setAttribute("aria-valuetext", summaryText(p, finished));
+  $("upbar-fill").style.width = `${p.pct}%`;
+  $("upbar-cancel").hidden = finished;
+}
+
+function announce(text) { $("upbar-live").textContent = text; }
+
+// Cancel: stop the file being sent and drop everything still waiting
+$("upbar-cancel").addEventListener("click", () => {
+  for (const i of upItems) if (i.state === "waiting" || i.state === "preparing") finishItem(i, "cancelled", "Cancelled", 0);
+  upAbort?.abort();
+  announce("Upload cancelled");
+  toast("Upload cancelled");
+});
+
+// Closing the tab mid-upload would lose the rest: ask first
+window.addEventListener("beforeunload", (e) => {
+  if (!upRunning) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
 
 function readBase64(file) {
   return new Promise((resolve, reject) => {

@@ -97,8 +97,16 @@
           </select>
         </div>
 
-        <!-- Upload progress -->
-        <ul id="queue" class="queue" aria-live="polite"></ul>
+        <!-- Upload progress: one bar for the whole batch, then a row per file -->
+        <div id="upbar" class="upbar" hidden>
+          <div class="upbar-top">
+            <span id="upbar-text" class="upbar-text"></span>
+            <button class="link-btn" id="upbar-cancel" type="button">Cancel</button>
+          </div>
+          <div class="upbar-track" id="upbar-track" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="upbar-fill" id="upbar-fill"></div></div>
+          <p class="sr-only" id="upbar-live" aria-live="polite"></p>
+        </div>
+        <ul id="queue" class="queue"></ul>
 
         <!-- Favourites + auto categories -->
         <nav id="chips" class="chips" aria-label="Categories"></nav>

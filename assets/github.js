@@ -66,6 +66,45 @@ export class Vault {
     return res;
   }
 
+  /**
+   * Like request(), but with XMLHttpRequest so uploads can report progress
+   * (fetch can't). Used for document uploads only. Resolves to the parsed
+   * JSON body; rejects with GitHubError, or a DOMException "AbortError".
+   */
+  send(url, { method, body, onProgress, signal }) {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) return reject(new DOMException("Upload cancelled", "AbortError"));
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      xhr.setRequestHeader("Authorization", `Bearer ${this.token}`);
+      xhr.setRequestHeader("Accept", "application/vnd.github+json");
+      xhr.setRequestHeader("X-GitHub-Api-Version", "2022-11-28");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (onProgress) {
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+        xhr.upload.onload = () => onProgress(1, 1); // every byte is out; GitHub is saving now
+      }
+      const onAbort = () => xhr.abort();
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const done = () => signal?.removeEventListener("abort", onAbort);
+      xhr.onabort = () => { done(); reject(new DOMException("Upload cancelled", "AbortError")); };
+      xhr.onerror = () => { done(); reject(new TypeError("Network error")); };
+      xhr.onload = () => {
+        done();
+        let data = {};
+        try { data = JSON.parse(xhr.responseText || "{}"); } catch { /* not json */ }
+        if (xhr.status >= 200 && xhr.status < 300) return resolve(data);
+        const err = new GitHubError(xhr.status, data.message || xhr.statusText);
+        if ((xhr.status === 403 || xhr.status === 429) && xhr.getResponseHeader("x-ratelimit-remaining") === "0") {
+          err.rateLimited = true;
+          err.resetAt = Number(xhr.getResponseHeader("x-ratelimit-reset")) * 1000 || null;
+        }
+        reject(err);
+      };
+      xhr.send(JSON.stringify(body));
+    });
+  }
+
   /** Checks the token can see the repo. Throws GitHubError otherwise. */
   async check() {
     const repo = await (await this.request(this.repoUrl)).json();
@@ -103,9 +142,10 @@ export class Vault {
    * Upload a new document. If the name is taken, adds " (2)", " (3)" ...
    * `tag` goes into the commit message so other devices can show where the
    * file came from: "Upload CV.pdf [iPhone, upload]". See organize.parseCommit.
+   * `onProgress(loaded, total)` reports the bytes sent; `signal` cancels.
    * Returns {name, path, sha} of the saved file.
    */
-  async upload(name, base64, tag = "") {
+  async upload(name, base64, tag = "", { onProgress, signal } = {}) {
     const dot = name.lastIndexOf(".");
     const stem = dot > 0 ? name.slice(0, dot) : name;
     const ext = dot > 0 ? name.slice(dot) : "";
@@ -113,11 +153,12 @@ export class Vault {
       const candidate = n === 1 ? name : `${stem} (${n})${ext}`;
       const path = `${this.folder}/${candidate}`;
       try {
-        const res = await this.request(this.url(path), {
+        const data = await this.send(this.url(path), {
           method: "PUT",
           body: { message: `Upload ${candidate}${tag ? ` [${tag}]` : ""}`, content: base64 },
+          onProgress,
+          signal,
         });
-        const data = await res.json().catch(() => ({}));
         return { name: candidate, path, sha: data.content?.sha || null };
       } catch (e) {
         // 422 = file exists (no sha given). Try the next name.

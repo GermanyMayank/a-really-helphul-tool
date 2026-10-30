@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.0 (2026-10-30) - upload progress bar
+
+- One bar for the whole batch under the header: "Uploading 2 of 5 · 48% · about 20 s left", weighted by file size
+- Real progress from the bytes sent (XMLHttpRequest upload events); a moving stripe while GitHub saves the commit
+- Each file row has its own thin bar and status: Preparing, Uploading %, Saving, Done
+- Cancel stops the batch; a failed file stays with Retry and Dismiss
+- The browser asks before you close the tab mid-upload
+- New pure module `progress.js`; tests: 223 checks
+
 ## 4.0.0 (2026-10-30) - Trash, install as an app, backup, dark mode
 
 **Trash**

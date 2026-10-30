@@ -180,9 +180,44 @@ body[data-view="clips"] .btn-upload { display: none; }
 .queue { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
 .queue:empty { display: none; }
 .queue li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border-radius: 12px; font-size: 14px; box-shadow: var(--shadow); }
+.queue li { flex-wrap: wrap; position: relative; overflow: hidden; }
 .queue li .name { flex: 1; }
-.queue li.ok { color: var(--muted); }
-.queue li.fail { color: var(--danger); box-shadow: inset 0 0 0 1px #f5c2bd; }
+.queue li.done, .queue li.skipped { color: var(--muted); }
+.queue li.failed { color: var(--danger); box-shadow: inset 0 0 0 1px #f5c2bd; padding-right: 6px; }
+.queue li.failed .retry { color: var(--accent-text); font-weight: 600; padding: 6px 4px; }
+.queue li.failed .icon-btn { width: 36px; height: 36px; }
+.queue .state { font-variant-numeric: tabular-nums; }
+/* a thin bar along the bottom of each row */
+.qbar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); }
+.qbar-fill { display: block; height: 100%; background: var(--kumkum); transform: scaleX(0); transform-origin: left; transition: transform .2s; }
+.queue li.saving .qbar-fill { background: var(--haldi); }
+
+/* ---------- Upload bar (v4.1): the whole batch at a glance ---------- */
+.upbar {
+  position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 3;
+  margin: 0 0 10px; padding: 12px 14px 14px; border-radius: 16px; background: var(--surface); box-shadow: var(--lift);
+}
+.upbar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.upbar-text { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+.upbar .link-btn { min-height: 32px; }
+.upbar-track { position: relative; height: 10px; border-radius: 999px; background: var(--kumkum-soft); overflow: hidden; }
+.upbar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0; min-width: 10px; border-radius: inherit; background: var(--kumkum);
+  transition: width .25s ease-out;
+}
+.upbar-fill.instant { transition: none; }
+/* haldi leading edge */
+.upbar-fill::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 10px; border-radius: 999px; background: var(--haldi); }
+/* while GitHub saves the last file there is nothing to count: a slow moving stripe instead of a stuck bar */
+.upbar:has(~ .queue li.saving) .upbar-fill {
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.22) 0 8px, transparent 8px 16px);
+  background-size: 23px 23px; animation: upbar-stripe 1s linear infinite;
+}
+@keyframes upbar-stripe { to { background-position: 23px 0; } }
+.upbar.finished .upbar-fill::after { display: none; }
+.upbar.finished:not(.has-failed) .upbar-text { color: var(--muted); }
+.upbar.has-failed .upbar-fill { background: var(--danger); }
+@media (min-width: 1000px) { #docs-view > .upbar { grid-column: 2; } }
 
 .container { max-width: 1180px; margin: 0 auto; padding: 0 16px 64px; }
 

@@ -12,6 +12,7 @@ import * as clipsLib from "../assets/clips.js";
 import * as trashLib from "../assets/trash.js";
 import { VERSION } from "../assets/version.js";
 import { makeZip, crc32 } from "../assets/zip.js";
+import * as prog from "../assets/progress.js";
 import { writeFileSync, readFileSync } from "fs";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -77,6 +78,19 @@ const zipCheck = (buf) => execFileSync("python3", ["-c",
   assert(zipCheck(zipPath).trim() === '[["Führerschein.pdf", 3], ["empty.txt", 0]]', "makeZip: valid zip, UTF-8 names, empty files");
 }
 
+{
+  const it = (size, state, sent = 0) => ({ size, state, sent });
+  const p1 = prog.sessionProgress([it(1e6, "done"), it(1e6, "uploading", 0.5), it(2e6, "waiting")], 0, 1000);
+  assert(p1.current === 2 && p1.count === 3 && p1.pct === 37 && p1.etaSec === null, "progress: weighted by size, current file, no time left in the first 2 s");
+  const p2 = prog.sessionProgress([it(10e6, "uploading", 0.5)], 0, 10000);
+  assert(p2.etaSec === 10, "progress: time left from the speed so far");
+  assert(prog.sessionProgress([it(0, "done"), it(0, "failed")], 0).pct === 100 && prog.sessionProgress([it(0, "waiting")], 0).pct === 0, "progress: empty files count too");
+  assert(prog.sessionProgress([it(5, "cancelled"), it(5, "done")], 0).count === 1, "progress: cancelled files drop out of the count");
+  assert(prog.formatEta(3) === "a few seconds left" && prog.formatEta(22) === "about 25 s left" && prog.formatEta(130) === "about 2 min left", "formatEta: short and rounded");
+  assert(prog.summaryText({ current: 2, count: 5, pct: 48, etaSec: 20 }) === "Uploading 2 of 5 · 48% · about 20 s left", "summaryText: while uploading");
+  assert(prog.summaryText({ done: 3, count: 4, failed: 1 }, true) === "3 uploaded, 1 failed", "summaryText: at the end, with a failure");
+}
+
 // ---------------------------------------------------------------- fake GitHub
 // Behaves like the real API for everything the app uses, including real git
 // blob shas (so duplicate detection works) and the Git Data API (rename/undo).
@@ -100,8 +114,14 @@ const SEEDED = new Map([...vault].map(([p, f]) => [p, f.buf]));
 
 let stateWrites = 0;
 let publicVault = false;
+let uploadDelay = 0;          // ms each document upload takes (to watch the progress bar)
+let failNextUpload = false;   // the next document upload answers 500 (to test Retry)
 async function mockGitHub(context) {
-  await context.route("https://api.github.com/**", async (route) => {
+  // a request the app cancelled can't be answered any more: ignore that
+  await context.route("https://api.github.com/**", (route) => handleGitHub(route).catch(() => {}));
+}
+async function handleGitHub(route) {
+  {
     const req = route.request();
     const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*" };
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
@@ -169,6 +189,10 @@ async function mockGitHub(context) {
     }
     if (m === "PUT") {
       const { content, message, sha } = req.postDataJSON();
+      if (path.startsWith("files/")) {
+        if (uploadDelay) await new Promise((r) => setTimeout(r, uploadDelay));
+        if (failNextUpload) { failNextUpload = false; return json(500, { message: "Server Error" }); }
+      }
       const existing = vault.get(path);
       if (existing && !sha) return json(422, { message: '"sha" wasn\'t supplied.' });
       if (existing && sha !== existing.sha) return json(409, { message: "conflict" });
@@ -185,7 +209,7 @@ async function mockGitHub(context) {
       return json(200, {});
     }
     return json(405, { message: "nope" });
-  });
+  }
 }
 const trashed = () => [...vault.keys()].filter((k) => k.startsWith(".trash/"));
 const lastMessage = (name) => commits.find((c) => c.path === "files/" + name)?.message || "";
@@ -347,6 +371,61 @@ for (const [label, opts, device] of [
   });
   await p.waitForFunction(() => document.querySelectorAll(".file").length === 7, null, { timeout: 15000 });
   assert([...vault.keys()].some((k) => k.startsWith("files/Screenshot ")), `${label}: paste uploads a screenshot with a useful name`);
+
+  // upload bar: one bar for the batch, rising to 100 %, then gone
+  await p.evaluate(() => {
+    window.__bar = [];
+    new MutationObserver(() => window.__bar.push(+document.getElementById("upbar-track").getAttribute("aria-valuenow")))
+      .observe(document.getElementById("upbar-track"), { attributes: true, attributeFilter: ["aria-valuenow"] });
+  });
+  uploadDelay = 700;
+  await p.setInputFiles("#file-input", [
+    { name: "Bar A.pdf", mimeType: "application/pdf", buffer: Buffer.alloc(300000, 1) },
+    { name: "Bar B.pdf", mimeType: "application/pdf", buffer: Buffer.alloc(100000, 2) },
+  ]);
+  await p.waitForSelector("#upbar:not([hidden])");
+  await p.waitForFunction(() => /^Uploading 1 of 2/.test(document.getElementById("upbar-text").textContent));
+  assert(true, `${label}: the bar says which file of how many`);
+  assert(await p.evaluate(() => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; }), `${label}: leaving the page mid-upload asks first`);
+  await p.screenshot({ path: SHOTS + `${label}-8-upload.png` });
+  await p.waitForFunction(() => document.getElementById("upbar-text").textContent === "Uploaded 2 of 2", null, { timeout: 15000 });
+  const seen = await p.evaluate(() => window.__bar);
+  assert(seen.at(-1) === 100 && seen.every((v, i) => i === 0 || v >= seen[i - 1]) && seen.some((v) => v > 0 && v < 100), `${label}: progress only goes up and ends at 100% (${seen.length} steps)`);
+  assert(await p.isHidden("#upbar-cancel"), `${label}: no Cancel once everything is done`);
+  await p.waitForSelector("#upbar", { state: "hidden", timeout: 5000 });
+  assert(!(await p.evaluate(() => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })), `${label}: no leave-page warning when nothing is uploading`);
+  assert(vault.has("files/Bar A.pdf") && vault.has("files/Bar B.pdf"), `${label}: both files uploaded`);
+
+  // cancel: the rest of the batch is never sent
+  uploadDelay = 1500;
+  await p.setInputFiles("#file-input", [
+    { name: "Cancel 1.pdf", mimeType: "application/pdf", buffer: Buffer.from("c1") },
+    { name: "Cancel 2.pdf", mimeType: "application/pdf", buffer: Buffer.from("c2") },
+    { name: "Cancel 3.pdf", mimeType: "application/pdf", buffer: Buffer.from("c3") },
+  ]);
+  await p.waitForSelector("#queue li.uploading, #queue li.saving");
+  await p.click("#upbar-cancel");
+  await p.waitForSelector("#upbar", { state: "hidden" });
+  await p.waitForTimeout(2000);
+  assert(!vault.has("files/Cancel 2.pdf") && !vault.has("files/Cancel 3.pdf") && (await p.locator("#queue li").count()) === 0, `${label}: Cancel stops the batch and clears the rows`);
+  uploadDelay = 0;
+  await p.click("#refresh-btn");
+  await p.waitForTimeout(500);
+
+  // a failed upload stays with Retry
+  failNextUpload = true;
+  await p.setInputFiles("#file-input", [{ name: "Retry me.pdf", mimeType: "application/pdf", buffer: Buffer.from("retry") }]);
+  await p.waitForSelector("#queue li.failed .retry");
+  assert((await p.textContent("#upbar-text")) === "0 uploaded, 1 failed", `${label}: the bar reports the failure`);
+  await p.click("#queue li.failed .retry");
+  await until(() => vault.has("files/Retry me.pdf"));
+  await p.waitForFunction(() => !document.querySelector("#queue li.failed"));
+  assert(vault.has("files/Retry me.pdf"), `${label}: Retry uploads the file`);
+  // tidy up so the counts below stay as before
+  for (const n of ["Bar A.pdf", "Bar B.pdf", "Cancel 1.pdf", "Retry me.pdf"]) vault.delete("files/" + n);
+  await p.click("#refresh-btn");
+  await p.waitForFunction(() => document.querySelectorAll(".file").length === 7, null, { timeout: 10000 });
+  await p.waitForFunction(() => document.getElementById("toast").hidden && document.getElementById("upbar").hidden, null, { timeout: 10000 });
 
   // favourites: heart, synced to .app/state.json, pinned on top, chip
   await row(p, "Lebenslauf").getByLabel("Add to favourites").click({ force: true });

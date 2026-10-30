@@ -55,7 +55,7 @@ Done: search, sort, auto categories, origins (1.1); favourites, rename, copy, se
 3. **Notes / tags per file** - a short note or extra keywords in `state.json`, included in search.
 4. **Multi-select** - long-press / checkbox to download, favourite or delete several files at once.
 5. **Manual category override** - `state.json` map name -> category, set from a "Move to..." menu item.
-6. **Upload progress bar** - planned for 4.1.0.
+6. Done in 4.1: upload progress bar (`progress.js`, `Vault.send` with XHR).
 7. **Bigger files** - upload through the Git Data API (create blob) for up to 100 MB.
 8. **Content search inside PDFs** - pdf.js text extraction, cached per sha. Heavier; only if needed.
 
