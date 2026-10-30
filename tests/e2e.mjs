@@ -333,7 +333,7 @@ for (const [label, opts, device] of [
   await p.click("#lock-btn");
   await p.waitForSelector("#app:not([hidden]) .file", { timeout: 30000 });
   await p.waitForSelector("#whatsnew:not([hidden])");
-  assert((await p.textContent("#whatsnew .release.latest")).includes("Trash"), `${label}: What's new opens once after the update`);
+  assert((await p.textContent("#whatsnew .release.latest .release-version")) === `v${VERSION.split(".").slice(0, 2).join(".")}`, `${label}: What's new opens once after the update`);
   await p.screenshot({ path: SHOTS + `${label}-0-whatsnew.png` });
   await p.click("#whatsnew [data-close]");
   assert((await p.locator(".file").count()) === 3, `${label}: lists 3 files`);
