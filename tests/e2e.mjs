@@ -9,6 +9,12 @@ import { mkdirSync } from "fs";
 import { createHash } from "crypto";
 import * as org from "../assets/organize.js";
 import * as clipsLib from "../assets/clips.js";
+import * as trashLib from "../assets/trash.js";
+import { VERSION } from "../assets/version.js";
+import { makeZip, crc32 } from "../assets/zip.js";
+import { writeFileSync, readFileSync } from "fs";
+import { execFileSync } from "child_process";
+import { tmpdir } from "os";
 
 const BASE = process.env.BASE || "http://localhost:8080";
 const SHOTS = new URL("./screenshots/", import.meta.url).pathname;
@@ -44,6 +50,32 @@ assert(clipsLib.linkParts("javascript:alert(1) and ftp://x").every((p) => !p.hre
 assert(clipsLib.normalizeClip("  \r\n line 1\r\nline 2 \n") === "line 1\nline 2", "normalizeClip: trims and unifies line endings");
 const NOW = new Date("2026-10-28T12:00:00Z");
 assert(clipsLib.clipAge("2026-10-28T11:59:40Z", NOW) === "just now" && clipsLib.clipAge("2026-10-28T11:55:00Z", NOW) === "5 min ago", "clipAge: just now, minutes");
+
+const DELETED = new Date("2026-10-30T10:15:00.123Z");
+const tn = trashLib.trashName("Mietvertrag__v2 (1).pdf", DELETED);
+assert(tn === "20261030-101500-123__Mietvertrag__v2 (1).pdf", "trashName: UTC stamp + original name");
+const parsed = trashLib.parseTrashName(tn);
+assert(parsed.name === "Mietvertrag__v2 (1).pdf" && parsed.deletedAt.getTime() === DELETED.getTime(), "parseTrashName: round trip, '__' inside the name survives");
+assert(trashLib.parseTrashName("notes.txt") === null, "parseTrashName: ignores files without a stamp");
+assert(trashLib.daysLeft(DELETED, new Date("2026-10-30T12:00:00Z")) === 30 && trashLib.daysLeft(DELETED, new Date("2026-11-28T12:00:00Z")) === 1, "daysLeft: 30 on the day, 1 at the end");
+assert(!trashLib.isExpired(DELETED, new Date("2026-11-29T10:00:00Z")) && trashLib.isExpired(DELETED, new Date("2026-11-29T10:15:01Z")), "isExpired: exactly after 30 days");
+assert(trashLib.trashLabel(DELETED, new Date("2026-11-01T10:20:00Z")) === "Deleted 2 days ago · 28 days left", "trashLabel: age and days left");
+assert(trashLib.freeName("a.pdf", new Set(["a.pdf", "a (2).pdf"])) === "a (3).pdf" && trashLib.freeName("b.pdf", new Set(["a.pdf"])) === "b.pdf", "freeName: next free name");
+assert(org.parseCommit("Restore CV.pdf [iPhone]").action === "Restore", "parseCommit: restore");
+
+assert(crc32(new TextEncoder().encode("123456789")) === 0xcbf43926, "crc32: standard check value");
+// a zip our writer makes must open in a real unzip (Python's zipfile, CRCs checked)
+const zipCheck = (buf) => execFileSync("python3", ["-c",
+  "import sys,zipfile,json; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; sys.stdout.reconfigure(encoding=\"utf-8\"); print(json.dumps([[i.filename,i.file_size] for i in z.infolist()], ensure_ascii=False))",
+  buf], { encoding: "utf8" });
+{
+  const zipPath = tmpdir() + "/helpful-unit.zip";
+  writeFileSync(zipPath, Buffer.concat(makeZip([
+    { name: "Führerschein.pdf", data: new Uint8Array([1, 2, 3]), date: new Date(2026, 9, 30, 10, 15) },
+    { name: "empty.txt", data: new Uint8Array(0) },
+  ])));
+  assert(zipCheck(zipPath).trim() === '[["Führerschein.pdf", 3], ["empty.txt", 0]]', "makeZip: valid zip, UTF-8 names, empty files");
+}
 
 // ---------------------------------------------------------------- fake GitHub
 // Behaves like the real API for everything the app uses, including real git
@@ -123,9 +155,11 @@ async function mockGitHub(context) {
     const path = decodeURIComponent(sub.slice("/contents/".length));
     const raw = (req.headers()["accept"] || "").includes("raw");
 
-    if (m === "GET" && path === "files") {
-      const items = [...vault].filter(([p]) => p.startsWith("files/")).map(([p, f]) => ({ type: "file", name: p.split("/").pop(), path: p, sha: f.sha, size: f.buf.length }));
-      return items.length ? json(200, items) : json(404, { message: "Not Found" });
+    // a folder: list the files directly in it (files/, .trash/ ...)
+    if (m === "GET" && !vault.has(path)) {
+      const items = [...vault].filter(([p]) => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/"))
+        .map(([p, f]) => ({ type: "file", name: p.split("/").pop(), path: p, sha: f.sha, size: f.buf.length }));
+      if (items.length) return json(200, items);
     }
     if (m === "GET") {
       const f = vault.get(path);
@@ -153,6 +187,7 @@ async function mockGitHub(context) {
     return json(405, { message: "nope" });
   });
 }
+const trashed = () => [...vault.keys()].filter((k) => k.startsWith(".trash/"));
 const lastMessage = (name) => commits.find((c) => c.path === "files/" + name)?.message || "";
 // Wait (in Node) until the fake vault reaches a state
 const until = async (cond, ms = 8000) => { const end = Date.now() + ms; while (!cond() && Date.now() < end) await new Promise((r) => setTimeout(r, 50)); };
@@ -207,12 +242,53 @@ const search = async (p, q) => { await p.fill("#search", q); await p.waitForTime
 const row = (p, n) => p.locator(".file", { hasText: n }).first();
 const menuAction = async (p, n, act) => { await row(p, n).getByLabel("More options").click(); await p.click(`#menu [data-act="${act}"]`); };
 
+// ---------------------------------------------------------------- about page
+{
+  const c = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const p = await c.newPage();
+  watch(p);
+  await p.goto(`${BASE}/about.html`);
+  assert((await p.title()) === "About · a really helpful tool", "about: page loads with its title");
+  assert((await p.textContent("h1")).includes("one tap away"), "about: hero headline");
+  assert((await p.getAttribute(".a-ctas .a-btn-red", "href")) === "./", "about: Open my vault goes to the app");
+  await p.waitForFunction((v) => document.querySelector(".a-foot .version").textContent === v, `v${VERSION}`);
+  assert(true, `about: footer shows v${VERSION}`);
+  await p.screenshot({ path: SHOTS + "about-desktop.png", fullPage: true });
+  await p.setViewportSize({ width: 390, height: 844 });
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= 390), "about: no sideways scrolling on a phone");
+  await p.screenshot({ path: SHOTS + "about-iphone.png", fullPage: true });
+  await c.close();
+}
+
+// ---------------------------------------------------------------- offline start (service worker)
+{
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const p = await c.newPage();
+  watch(p);
+  await p.goto(BASE + "/");
+  await p.waitForSelector("#lock:not([hidden])");
+  await p.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await p.waitForFunction(async () => (await caches.keys()).some((k) => k.startsWith("helpful-shell-")));
+  assert(true, "service worker installs and keeps the app for offline use");
+  await c.setOffline(true);
+  await p.reload();
+  await p.waitForSelector("#lock:not([hidden])", { timeout: 10000 });
+  assert((await p.title()) === "a really helpful tool" && (await p.textContent("#lock .version")) === `v${VERSION}`, "app opens with no connection");
+  await p.goto(BASE + "/about.html");
+  assert((await p.textContent("h1")).includes("one tap away"), "front page opens with no connection");
+  await c.setOffline(false);
+  const reqs = await p.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith("helpful-shell-")))).keys()).map((r) => r.url));
+  assert(!reqs.some((u) => u.includes("api.github.com")), "offline cache never holds anything from GitHub");
+  await c.close();
+}
+
 // ---------------------------------------------------------------- app: desktop + iPhone
 for (const [label, opts, device] of [
   ["desktop", { viewport: { width: 1280, height: 860 } }, "Linux PC"],
   ["iphone", devices["iPhone 13"], "iPhone"],
 ]) {
-  const c = await browser.newContext({ ...opts, acceptDownloads: true });
+  // service workers off here: they would answer config.js from their cache instead of the test's mock
+  const c = await browser.newContext({ ...opts, acceptDownloads: true, serviceWorkers: "block" });
   await c.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE }).catch(() => {});
   await mockGitHub(c);
   await c.route(`${BASE}/config.js*`, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: configText }));
@@ -222,6 +298,7 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#lock:not([hidden])");
   assert((await p.title()) === "a really helpful tool", `${label}: app is called "a really helpful tool"`);
   await p.screenshot({ path: SHOTS + `${label}-1-lock.png` });
+  assert((await p.textContent("#lock .version")) === `v${VERSION}` && (await p.getAttribute('#lock a[href="about.html"]', "href")), `${label}: lock screen shows v${VERSION} and an About link`);
 
   await p.fill("#lock-input", "wrong password");
   await p.click("#lock-btn");
@@ -231,7 +308,12 @@ for (const [label, opts, device] of [
   await p.fill("#lock-input", PASSWORD);
   await p.click("#lock-btn");
   await p.waitForSelector("#app:not([hidden]) .file", { timeout: 30000 });
+  await p.waitForSelector("#whatsnew:not([hidden])");
+  assert((await p.textContent("#whatsnew .release.latest")).includes("Trash"), `${label}: What's new opens once after the update`);
+  await p.screenshot({ path: SHOTS + `${label}-0-whatsnew.png` });
+  await p.click("#whatsnew [data-close]");
   assert((await p.locator(".file").count()) === 3, `${label}: lists 3 files`);
+  assert((await p.textContent(".app-foot .version")) === `v${VERSION}`, `${label}: app footer shows the version`);
 
   // origins
   await p.waitForFunction(() => document.body.innerText.includes("GitHub"), null, { timeout: 10000 });
@@ -346,7 +428,77 @@ for (const [label, opts, device] of [
   assert(!vault.has("files/notes (2).txt"), `${label}: delete works`);
   await p.click("#toast-action");
   await p.waitForFunction(() => document.querySelectorAll(".file").length === 7, null, { timeout: 10000 });
-  assert(vault.has("files/notes (2).txt"), `${label}: undo brings the deleted file back`);
+  assert(vault.has("files/notes (2).txt") && trashed().length === 0, `${label}: undo brings the deleted file back (and empties the trash again)`);
+
+  // ---------------------------------------------------------------- trash
+  await menuAction(p, "notes (2).txt", "delete");
+  assert((await p.textContent("#confirm-text")).includes("Trash"), `${label}: delete says the file goes to the Trash`);
+  await p.click("#confirm-ok");
+  await p.waitForFunction(() => document.querySelectorAll(".file").length === 6);
+  assert(trashed().length === 1 && trashed()[0].endsWith("__notes (2).txt") && lastMessage("notes (2).txt") === `Delete notes (2).txt [${device}]`, `${label}: delete moves the file to .trash/ in one commit`);
+  // an old entry from 40 days ago is cleaned up when the Trash opens
+  setFile(`.trash/${trashLib.trashName("old-receipt.pdf", new Date(Date.now() - 40 * 864e5))}`, Buffer.from("old"));
+  setFile(`.trash/${trashLib.trashName("Mietvertrag.pdf", new Date(Date.now() - 3 * 864e5))}`, vault.get("files/Mietvertrag.pdf").buf);
+  await p.click("#trash-btn");
+  await p.waitForSelector("#trash:not([hidden]) .trash-item");
+  await p.waitForFunction(() => document.querySelectorAll("#trash-list .trash-item").length === 2);
+  assert(!trashed().some((k) => k.includes("old-receipt")), `${label}: files older than 30 days are removed for good`);
+  const trashNames = await p.$$eval("#trash-list .file-name", (els) => els.map((e) => e.textContent));
+  assert(JSON.stringify(trashNames) === '["notes (2).txt","Mietvertrag.pdf"]', `${label}: Trash lists what was deleted, newest first`);
+  assert((await p.textContent("#trash-list .trash-item:nth-child(2) .file-meta")) === "Deleted 3 days ago · 27 days left", `${label}: Trash shows when and how long is left`);
+  await p.screenshot({ path: SHOTS + `${label}-6-trash.png` });
+  // restore: Mietvertrag.pdf is still in the list, so the copy comes back as "Mietvertrag (2).pdf"
+  await p.locator("#trash-list .trash-item", { hasText: "Mietvertrag" }).getByRole("button", { name: "Restore" }).click();
+  await p.waitForFunction(() => document.querySelectorAll("#trash-list .trash-item").length === 1);
+  await until(() => vault.has("files/Mietvertrag (2).pdf"));
+  assert(vault.has("files/Mietvertrag (2).pdf") && vault.has("files/Mietvertrag.pdf"), `${label}: restore never overwrites, a taken name becomes "name (2)"`);
+  await p.locator("#trash-list .trash-item", { hasText: "notes (2)" }).getByRole("button", { name: "Restore" }).click();
+  await p.waitForSelector("#trash-empty:not([hidden])");
+  await p.click("#trash [data-close]");
+  await p.waitForFunction(() => [...document.querySelectorAll(".file-name")].some((e) => e.textContent === "notes (2).txt"));
+  assert(lastMessage("notes (2).txt") === `Restore notes (2).txt [${device}]` && trashed().length === 0, `${label}: restore from the Trash puts the file back`);
+  await p.waitForFunction((d) => document.querySelector('.file[data-path="files/notes (2).txt"]')?.innerText.includes(d), device, { timeout: 10000 });
+  assert(true, `${label}: a restored file keeps its original device`);
+  // delete forever + empty trash
+  await menuAction(p, "Mietvertrag (2).pdf", "delete");
+  await p.click("#confirm-ok");
+  await menuAction(p, "notes (2).txt", "delete");
+  await p.click("#confirm-ok");
+  await until(() => trashed().length === 2);
+  await p.click("#trash-btn");
+  await p.waitForFunction(() => document.querySelectorAll("#trash-list .trash-item").length === 2);
+  await p.locator("#trash-list .trash-item", { hasText: "Mietvertrag" }).getByLabel(/forever/).click();
+  assert((await p.textContent("#confirm-ok")) === "Delete forever", `${label}: delete forever asks first`);
+  await p.click("#confirm-ok");
+  await p.waitForFunction(() => document.querySelectorAll("#trash-list .trash-item").length === 1);
+  assert(trashed().length === 1, `${label}: delete forever removes one file from the Trash`);
+  await p.click("#trash-clear");
+  await p.click("#confirm-ok");
+  await p.waitForSelector("#trash-empty:not([hidden])");
+  assert(trashed().length === 0, `${label}: Empty trash removes everything`);
+  await p.click("#trash [data-close]");
+  // backup: every document in one zip that opens anywhere
+  const [zipDl] = await Promise.all([p.waitForEvent("download"), p.click("#backup-btn")]);
+  assert(/^a-really-helpful-tool-backup-\d{4}-\d{2}-\d{2}\.zip$/.test(zipDl.suggestedFilename()), `${label}: backup downloads as a dated zip`);
+  const zipFile = tmpdir() + `/helpful-${label}.zip`;
+  await zipDl.saveAs(zipFile);
+  const inZip = JSON.parse(zipCheck(zipFile));
+  const docs = [...vault].filter(([k]) => k.startsWith("files/"));
+  assert(inZip.length === docs.length && docs.every(([k, f]) => inZip.some(([n, size]) => "files/" + n === k && size === f.buf.length)), `${label}: backup holds every document, byte for byte (${docs.length} files)`);
+  await p.waitForFunction(() => document.getElementById("toast-text").textContent.startsWith("Backup ready"));
+  assert(true, `${label}: says the backup is ready`);
+  assert(label === "iphone" ? await p.isVisible("#install-btn") : await p.isHidden("#install-btn"), `${label}: Install app link only where installing works`);
+  if (label === "iphone") {
+    await p.click("#install-btn");
+    await p.waitForSelector("#install-help:not([hidden])");
+    assert((await p.textContent("#install-help")).includes("Add to Home Screen"), "iphone: Install app explains Add to Home Screen");
+    await p.click("#install-help [data-close]");
+  }
+
+  await p.click("#whatsnew-btn");
+  await p.waitForSelector("#whatsnew:not([hidden])");
+  assert((await p.locator("#whatsnew .release").count()) >= 4, `${label}: What's new opens from the footer`);
+  await p.click("#whatsnew [data-close]");
 
   // ---------------------------------------------------------------- clipboard
   const clipTexts = () => p.$$eval("#clip-list .clip-text", (els) => els.map((e) => e.textContent));
@@ -474,14 +626,24 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#app:not([hidden]) .file");
   assert(true, `${label}: remembered device skips lock`);
 
+  // dark mode follows the device setting
+  await p.emulateMedia({ colorScheme: "dark" });
+  await p.waitForTimeout(100);
+  const bg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  assert(bg === "rgb(21, 15, 14)", `${label}: dark mode turns the page maroon-black`);
+  assert(await p.evaluate(() => getComputedStyle(document.querySelector(".hero")).backgroundColor) === "rgb(163, 32, 27)", `${label}: the kumkum header stays in dark mode`);
+  await p.click("#tab-docs");
+  await p.screenshot({ path: SHOTS + `${label}-7-dark.png`, fullPage: true });
+  await p.emulateMedia({ colorScheme: "light" });
+
   // lock wipes local copies
   await p.click("#logout-btn");
   await p.waitForSelector("#lock:not([hidden])");
-  const leftovers = await p.evaluate(async () => (await caches.keys()).length + ["docsync.list.v1", "docsync.clips.v1", "docsync.state.v1"].filter((k) => localStorage.getItem(k)).length);
+  const leftovers = await p.evaluate(async () => (await caches.keys()).filter((k) => !k.startsWith("helpful-shell-")).length + ["docsync.list.v1", "docsync.clips.v1", "docsync.state.v1"].filter((k) => localStorage.getItem(k)).length);
   assert(leftovers === 0, `${label}: lock removes cached files, list and clipboard from the device`);
 
   // reset the fake vault for the next round
-  for (const k of [...vault.keys()]) if (k.startsWith("files/") || k.startsWith(".app/")) vault.delete(k);
+  for (const k of [...vault.keys()]) if (k.startsWith("files/") || k.startsWith(".app/") || k.startsWith(".trash/")) vault.delete(k);
   for (const [k, buf] of SEEDED) setFile(k, buf);
   commits.length = 0;
   seed("Lebenslauf.docx", Buffer.alloc(48000), "Add files via upload", daysAgo(40));

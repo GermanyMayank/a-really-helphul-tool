@@ -52,7 +52,9 @@ export async function resolveMeta(vault, files) {
 
   // 1. scan the folder history (one call per 100 commits, newest first).
   //    "Rename A -> B": the file now called B was uploaded as A, so keep
-  //    looking further back for "Upload A".
+  //    looking further back for "Upload A". "Restore A" (back from the
+  //    trash) is skipped the same way as "Delete A", so a restored file keeps
+  //    the date and device of its original upload.
   for (let page = 1; page <= MAX_PAGES && want.size; page++) {
     const commits = await vault.history(page);
     for (const c of commits) {

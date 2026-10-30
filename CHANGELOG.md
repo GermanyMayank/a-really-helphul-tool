@@ -1,5 +1,37 @@
 # Changelog
 
+## 4.0.0 (2026-10-30) - Trash, install as an app, backup, dark mode
+
+**Trash**
+- Delete now moves a file to the Trash instead of removing it. It stays there for 30 days and comes back with one tap; Undo in the toast still works right away
+- The Trash opens from the link at the bottom of the app: Restore, Delete forever, or Empty trash (both ask first)
+- Restoring never overwrites: if the name is taken by then, the file comes back as "name (2)"
+- A restored file keeps its original upload date and device
+- Files older than 30 days are removed for good when the Trash opens, and at most once a day per device
+
+**Install as an app**
+- Add it to the home screen (Android, laptops: "Install app" at the bottom of the app; iPhone and iPad: the same link explains Share > Add to Home Screen) and it opens full screen from its own icon
+- Opens without a connection: a service worker (`sw.js`) keeps the app itself (pages, scripts, styles, icons, font) on the device. Files you opened before still open from their own cache. Nothing from GitHub is ever put in the app cache
+- Updates arrive on the next visit: pages are fetched fresh when online, and every release has new versioned file names
+
+**Backup**
+- "Backup" at the bottom of the app downloads every document in one zip (`a-really-helpful-tool-backup-<date>.zip`), with original names and dates
+- Built in the browser by a tiny zip writer (`zip.js`, no libraries); files you opened before come from the cache, so it is quick
+
+**Dark mode**
+- Follows the phone or laptop setting: warm maroon-black page, the kumkum header stays, haldi marks the selected category, kumkum text gets lighter so it stays readable
+
+**Product polish**
+- New front page at `about.html`: what the app is, why it is private, how it works, with a link to unlock
+- What's new window: opens once on each device after an update, and from the links on the lock screen and at the bottom of the app
+- Version number on the lock screen, at the bottom of the app and on the front page
+
+**Under the hood**
+- Trash entries are `.trash/<UTC stamp>__<name>` in the vault, moved with one Git Data API commit (no re-upload, no index file). New `Vault.listFolder`, `moveToTrash`, `restoreFromTrash`, `purge`
+- New pure modules `trash.js` and `version.js`; `parseCommit` understands `Restore <name>`
+- Nothing to migrate. Rolling back to 3.0.0 is safe: `.trash/` is simply ignored by older versions
+- Tests: 198 checks (zip format checked by a real unzip, backup contents byte for byte, offline start of the app and front page, nothing from GitHub in the offline cache, dark mode, Install app link per device, trash names and 30-day rule, delete to Trash, clean-up of old entries, restore with a taken name, origin kept, delete forever, empty trash, What's new, version on every screen, front page on desktop and phone)
+
 ## 3.0.0 (2026-10-28) - new design
 
 A full visual redesign, plus a clipboard fix. No change to how data is stored, so nothing to migrate.

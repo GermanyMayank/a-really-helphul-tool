@@ -26,9 +26,14 @@ Paste this file (and whichever source files are relevant) into ChatGPT, Claude o
 - `assets/meta.js` - file origins from commit history, cached in localStorage.
 - `assets/state.js` - `SyncedFile` engine (local-first change, save with sha, re-apply on 409/422) and `SharedState` favourites in `.app/state.json`. Build new synced data on `SyncedFile`; operations must be safe to run twice.
 - `assets/clips.js` - shared clipboard in `.app/clipboard.json` (`Clipboard extends SyncedFile`) plus pure helpers `clipLink`, `clipAge`, `normalizeClip`.
+- `assets/trash.js` - pure Trash helpers (names with a UTC stamp, 30-day rule, free names on restore). Deleting moves a file to `.trash/` via `Vault.moveToTrash`; see ARCHITECTURE.md.
+- `assets/version.js` - `VERSION` and the What's new notes. Bump it (and `package.json`, `CHANGELOG.md`) with every release.
+- `about.html` + `assets/about.css` - the public front page. Keep it static; it must never load the vault.
+- `sw.js` - service worker for offline start. Only same-origin GETs; never cache anything from api.github.com. Its version and file list are filled in by `scripts/build-site.sh`.
+- `assets/zip.js` - pure zip writer for Backup.
 - `assets/blobs.js` - file cache and prefetch. Keyed by sha; cleared on lock.
-- `assets/app.js` - UI. Sections are numbered 1 to 8 in comments; keep that order. Menu actions are wired in section 6, the Clipboard tab (views, polling, copy/paste) in section 7.
-- Commit message contract: `Upload <name> [<device>, <via>]` and `Rename <old> -> <new> [<device>]`. `meta.js` depends on it; keep it backwards compatible.
+- `assets/app.js` - UI. Sections are numbered 1 to 9 in comments; keep that order. Menu actions are wired in section 6, the Clipboard tab (views, polling, copy/paste) in section 7, Trash and What's new in section 8.
+- Commit message contract: `Upload <name> [<device>, <via>]`, `Rename <old> -> <new> [<device>]`, `Delete <name> [<device>]` and `Restore <name> [<device>]`. `meta.js` depends on it; keep it backwards compatible.
 - `assets/crypto.js` - do not change the format without bumping `v` and keeping `v: 1` decryptable.
 - `tests/e2e.mjs` - Playwright test with a mocked GitHub API. Extend the mock when you add API calls, and add assertions for new features.
 
@@ -43,14 +48,14 @@ All checks must print `ok`. Look at `tests/screenshots/` for desktop and iPhone 
 
 ## Roadmap (ideas, in rough priority order)
 
-Done: search, sort, auto categories, origins (1.1); favourites, rename, copy, send, undo delete, duplicate check, paste, instant preview, new name and design (1.2); production hardening, CI (1.3); shared clipboard tab (1.4); full redesign with red header, favourite cards, floating upload, sidebar on laptops, clickable links in clips (3.0). Removed in 1.2 on purpose: iOS Shortcut and Android share target (owner didn't want them).
+Done: search, sort, auto categories, origins (1.1); favourites, rename, copy, send, undo delete, duplicate check, paste, instant preview, new name and design (1.2); production hardening, CI (1.3); shared clipboard tab (1.4); full redesign with red header, favourite cards, floating upload, sidebar on laptops, clickable links in clips (3.0); Trash with 30-day restore, About page, What's new, version number, install as app + offline start, backup zip, dark mode (4.0). Removed in 1.2 on purpose: iOS Shortcut and Android share target (owner didn't want them).
 
 1. **Expiry reminders** - optional expiry date per file in `state.json` (passport, visa, residence permit, insurance); a "Due soon" chip and a banner 60/30/7 days before.
 2. **Recent** - "Recently opened" chip from a per-device list (localStorage), so the last few files are one tap away.
 3. **Notes / tags per file** - a short note or extra keywords in `state.json`, included in search.
 4. **Multi-select** - long-press / checkbox to download, favourite or delete several files at once.
 5. **Manual category override** - `state.json` map name -> category, set from a "Move to..." menu item.
-6. **Offline mode** - the blob cache already holds opened files; add a service worker that serves the app shell offline (version it to avoid stale code).
+6. **Upload progress bar** - planned for 4.1.0.
 7. **Bigger files** - upload through the Git Data API (create blob) for up to 100 MB.
 8. **Content search inside PDFs** - pdf.js text extraction, cached per sha. Heavier; only if needed.
 

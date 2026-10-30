@@ -4,7 +4,8 @@
 //
 //   Contents API  (list, upload, download, delete, small JSON state file)
 //     https://docs.github.com/en/rest/repos/contents
-//   Git Data API  (rename and undo-delete as one atomic commit, no re-upload)
+//   Git Data API  (rename, move to / restore from the trash, purge: each one
+//                  atomic commit that only changes tree entries, no re-upload)
 //     https://docs.github.com/en/rest/git
 
 const API = "https://api.github.com";
@@ -74,8 +75,13 @@ export class Vault {
 
   /** List documents: [{name, path, sha, size}] sorted by name. */
   async list() {
+    return this.listFolder(this.folder);
+  }
+
+  /** Files directly in one folder of the vault, sorted by name. Missing folder = []. */
+  async listFolder(folder) {
     try {
-      const res = await this.request(this.url(this.folder));
+      const res = await this.request(this.url(folder));
       const items = await res.json();
       return items
         .filter((i) => i.type === "file" && i.name !== ".gitkeep")
@@ -148,6 +154,44 @@ export class Vault {
   /** Undo a delete: git keeps the old blob, so we just point the path at it again. */
   async restore(path, sha, tag = "") {
     await this.commitTree([{ path, mode: "100644", type: "blob", sha }], `Upload ${path.split("/").pop()}${tag ? ` [${tag}]` : ""}`);
+  }
+
+  /**
+   * Move a document to the trash: one commit that points `trashPath` at the
+   * same blob and removes the document. The commit message keeps the
+   * "Delete <name>" contract, so meta.js and the history read the same.
+   */
+  async moveToTrash(path, sha, trashPath, tag = "") {
+    await this.commitTree(
+      [
+        { path: trashPath, mode: "100644", type: "blob", sha },
+        { path, mode: "100644", type: "blob", sha: null },
+      ],
+      `Delete ${path.split("/").pop()}${tag ? ` [${tag}]` : ""}`
+    );
+  }
+
+  /**
+   * Bring a file back from the trash as <folder>/<name>. The message is
+   * "Restore <name>", which meta.js skips, so the file keeps its original
+   * upload date and device. Returns {name, path, sha}.
+   */
+  async restoreFromTrash(trashPath, sha, name, tag = "") {
+    const path = `${this.folder}/${name}`;
+    await this.commitTree(
+      [
+        { path, mode: "100644", type: "blob", sha },
+        { path: trashPath, mode: "100644", type: "blob", sha: null },
+      ],
+      `Restore ${name}${tag ? ` [${tag}]` : ""}`
+    );
+    return { name, path, sha };
+  }
+
+  /** Remove trash entries for good, all in one commit. */
+  async purge(paths, message) {
+    if (!paths.length) return;
+    await this.commitTree(paths.map((path) => ({ path, mode: "100644", type: "blob", sha: null })), message);
   }
 
   /** Make one commit on the default branch that changes the given tree entries. */

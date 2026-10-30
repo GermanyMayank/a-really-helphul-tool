@@ -4,7 +4,7 @@
 //   - searchFiles(list, q)   "smart" search (typos, file kinds, devices, dates)
 //   - sortFiles(list, how)   newest / oldest / name / size
 //   - thisDevice()           "iPhone", "Mac", "Windows PC" ...
-//   - parseCommit(message)   read "Upload name [device, via]" commit messages
+//   - parseCommit(message)   read "Upload|Delete|Restore name [device, via]" commit messages
 //   - formatDate(iso)
 // To add a category or keyword, edit CATEGORIES below. Nothing else changes.
 
@@ -236,7 +236,7 @@ export function parseCommit(message) {
   // "Rename old.pdf -> new.pdf [Mac]"
   const r = line.match(/^Rename (.+?) -> (.+?)(?: \[([^\]]+)\])?$/);
   if (r) return { action: "Rename", from: r[1], name: r[2], device: r[3] || null, via: null };
-  const m = line.match(/^(Upload|Delete) (.+?)(?: \[([^\],\]]+?)(?:, *([^\]]+?))?\])?$/);
+  const m = line.match(/^(Upload|Delete|Restore) (.+?)(?: \[([^\],\]]+?)(?:, *([^\]]+?))?\])?$/);
   if (!m) return null;
   return { action: m[1], name: m[2], device: m[3] || null, via: m[4] || null };
 }

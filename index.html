@@ -7,6 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; frame-src blob:; connect-src https://api.github.com; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <meta name="theme-color" content="#a3201b" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="robots" content="noindex" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Helpful" />
@@ -34,6 +35,7 @@
         <p class="error" id="lock-error" role="alert"></p>
       </form>
       <p class="lock-foot">Your files stay in your own private GitHub repo.</p>
+      <p class="lock-meta"><span class="version"></span><span aria-hidden="true">·</span><button class="lock-link" id="lock-whatsnew" type="button">What's new</button><span aria-hidden="true">·</span><a class="lock-link" href="about.html">About</a></p>
     </div>
   </main>
 
@@ -144,6 +146,26 @@
           <button class="link-btn" id="clip-clear" type="button">Clear all</button>
         </div>
       </section>
+
+      <!-- Trash, What's new, About, version: quiet links at the end of every tab -->
+      <footer class="app-foot">
+        <span class="foot-meta">
+          <button class="foot-link" id="trash-btn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Trash
+          </button>
+          <button class="foot-link" id="backup-btn" type="button">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM4 7l2-3h12l2 3M12 10v6M9 13l3 3 3-3"/></svg>Backup
+          </button>
+          <button class="foot-link" id="install-btn" type="button" hidden>
+            <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10 18h4"/></svg>Install app
+          </button>
+        </span>
+        <span class="foot-meta">
+          <button class="foot-link" id="whatsnew-btn" type="button">What's new</button>
+          <a class="foot-link" href="about.html">About</a>
+          <span class="version"></span>
+        </span>
+      </footer>
     </main>
   </div>
 
@@ -203,6 +225,58 @@
         <button class="btn btn-primary" id="rename-ok" type="submit">Rename</button>
       </div>
     </form>
+  </div>
+
+  <!-- ============ TRASH ============ -->
+  <div id="trash" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="trash-title">
+    <div class="modal-box modal-list">
+      <header class="modal-head">
+        <h3 id="trash-title">Trash</h3>
+        <button class="icon-btn" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <p class="list-hint muted small">Deleted files stay here for 30 days, then they are removed for good.</p>
+      <div class="list-scroll">
+        <ul id="trash-list" class="trash-list" aria-live="polite"></ul>
+        <div id="trash-empty" class="list-empty" hidden>
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+          <p>Trash is empty.</p>
+          <p class="muted small">Nothing deleted in the last 30 days.</p>
+        </div>
+        <div id="trash-loading" class="loading" hidden><span class="spinner"></span> Loading…</div>
+      </div>
+      <footer class="list-foot" id="trash-foot" hidden>
+        <span class="muted small" id="trash-count"></span>
+        <button class="link-btn" id="trash-clear" type="button">Empty trash</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============ WHAT'S NEW ============ -->
+  <div id="whatsnew" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="whatsnew-title">
+    <div class="modal-box modal-list">
+      <header class="modal-head">
+        <h3 id="whatsnew-title">What's new</h3>
+        <button class="icon-btn" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="list-scroll" id="whatsnew-body"></div>
+    </div>
+  </div>
+
+  <!-- ============ INSTALL HELP (iPhone / iPad, where there is no install prompt) ============ -->
+  <div id="install-help" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="install-title">
+    <div class="modal-box">
+      <h3 id="install-title" class="modal-title">Add to your Home Screen</h3>
+      <ol class="install-steps">
+        <li>Tap the <strong>Share</strong> button in Safari's toolbar.</li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+        <li>Tap <strong>Add</strong>. The app opens full screen from its own icon.</li>
+      </ol>
+      <div class="row-end"><button class="btn btn-primary" type="button" data-close>Got it</button></div>
+    </div>
   </div>
 
   <!-- ============ CONFIRM MODAL ============ -->

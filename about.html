@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Same strict CSP as the app. This page talks to nothing at all. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#a3201b" />
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="A small, private vault for your documents. Files live in your own private GitHub repo and open on any device." />
+  <title>About · a really helpful tool</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/icon-180.png" />
+  <link rel="preload" href="assets/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/about.css" />
+</head>
+<body class="about">
+  <div class="bandhani bandhani-top" aria-hidden="true"></div>
+
+  <header class="a-nav">
+    <a class="a-brand" href="#top"><img src="assets/icon.svg" alt="" width="34" height="34" /><span>a really helpful tool</span></a>
+    <nav class="a-links" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a class="a-btn a-btn-red" href="./">Unlock</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="a-hero">
+      <div class="a-hero-text">
+        <p class="a-pill"><span class="haldi-dot" aria-hidden="true"></span>New in v4: Trash with 30-day restore</p>
+        <h1>Every document you own, <em>one tap away.</em></h1>
+        <p class="a-lead">A small, private vault for your papers. Files live in your own private GitHub repo and open on any phone or laptop from one link. No accounts, no subscription, just your password.</p>
+        <div class="a-ctas">
+          <a class="a-btn a-btn-red a-btn-big" href="./">Open my vault</a>
+          <a class="a-btn a-btn-line a-btn-big" href="#new">What's new</a>
+        </div>
+      </div>
+      <div class="a-hero-art" aria-hidden="true">
+        <div class="a-phone">
+          <div class="a-screen">
+            <div class="bandhani bandhani-top"></div>
+            <div class="a-screen-head"><span>My documents</span></div>
+            <div class="a-search">Search documents</div>
+            <div class="a-row"><span class="file-icon pdf">PDF</span><span class="a-row-text"><b>Passport.pdf</b><small>ID &amp; Visa</small></span><span class="a-star">♥</span></div>
+            <div class="a-row"><span class="file-icon pdf">PDF</span><span class="a-row-text"><b>Rental contract.pdf</b><small>Home</small></span></div>
+            <div class="a-row"><span class="file-icon img">JPG</span><span class="a-row-text"><b>Degree certificate.jpg</b><small>Education</small></span><span class="a-star">♥</span></div>
+            <div class="a-row"><span class="file-icon pdf">PDF</span><span class="a-row-text"><b>Insurance card.pdf</b><small>Insurance</small></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="a-band-soft">
+      <div class="a-wrap">
+        <h2>Simple on the outside. Serious on the inside.</h2>
+        <div class="a-cards">
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <h3>Private by default</h3>
+            <p>Your files sit in a private GitHub repo that only you own. The access key is AES-256 encrypted, and only your password unlocks it.</p>
+          </article>
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M6 18h6"/><rect x="17" y="8" width="5" height="12" rx="1.2"/></svg>
+            <h3>Any device, one link</h3>
+            <p>Android, iPhone, Mac or Windows. Open the link, type your password, done. Nothing to install.</p>
+          </article>
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+            <h3>Quick to use</h3>
+            <p>Paste or drop to upload, smart search, favourites, automatic categories and instant previews.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="a-band-red" id="new">
+      <div class="a-wrap a-split">
+        <article class="a-feature">
+          <p class="a-kicker">Shared clipboard</p>
+          <h3>Copy on the laptop, paste on the phone.</h3>
+          <p>Move links and text between your devices in a second. Links stay clickable.</p>
+        </article>
+        <article class="a-feature a-feature-white">
+          <p class="a-badge">New in v4</p>
+          <h3>Deleted by mistake? It's in the Trash.</h3>
+          <p>Deleted files wait 30 days before they are gone for good. Restore anything with one tap.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="a-wrap a-how" id="how">
+      <h2>How it works</h2>
+      <ol class="a-steps">
+        <li><span class="a-num">1</span><h3>Open the link</h3><p>Bookmark it or add it to your home screen.</p></li>
+        <li><span class="a-num">2</span><h3>Enter your password</h3><p>It unlocks your access key right in the browser. Your password never leaves the device.</p></li>
+        <li><span class="a-num">3</span><h3>Your files, everywhere</h3><p>Upload, preview, send or download from whatever you are holding.</p></li>
+      </ol>
+      <div class="a-ready">
+        <p>Ready when you are.</p>
+        <a class="a-btn a-btn-red a-btn-big" href="./">Open my vault</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="a-foot">
+    <div class="a-wrap a-foot-row">
+      <p><b>a really helpful tool</b> · <span class="version">v4.0.0</span></p>
+      <nav class="a-links" aria-label="Footer">
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool">GitHub</a>
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/SECURITY.md">Security</a>
+      </nav>
+    </div>
+    <div class="bandhani bandhani-top" aria-hidden="true"></div>
+  </footer>
+
+  <script type="module" src="assets/about.js"></script>
+</body>
+</html>

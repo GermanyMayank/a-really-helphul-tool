@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="136 browser checks" src="https://img.shields.io/badge/browser_checks-136-a3201b" />
+  <img alt="198 browser checks" src="https://img.shields.io/badge/browser_checks-198-a3201b" />
   <img alt="Runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-a3201b" />
   <img alt="Hosting" src="https://img.shields.io/badge/hosting-GitHub_Pages-1c1414" />
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-e3a21a" /></a>
@@ -36,8 +36,11 @@ There is no server and no database. The app is a static page on GitHub Pages, an
 | **Favourites** | Heart a file and it stays at the top on every device. |
 | **Opens instantly** | PDFs, images and text files preview at once. Files are cached on the device and start downloading as soon as your finger touches them. |
 | **Hands files over** | Copy images and text to the clipboard, or send the real file to WhatsApp, Mail or AirDrop through the phone's share sheet. |
-| **Forgiving** | Rename in one tap. Deleted by mistake? Undo. Every change is a git commit, so nothing is ever really lost. |
+| **Forgiving** | Rename in one tap. Deleted files go to the **Trash** for 30 days and come back with one tap (or Undo right away). Every change is a git commit, so nothing is ever really lost. |
 | **Remembers where files came from** | Each file shows the device it was uploaded from and when. |
+| **Installs like an app** | Add it to your home screen and it opens full screen, even without a connection. |
+| **Backup in one tap** | Download every document in one zip, any time. |
+| **Dark mode** | Follows your phone or laptop, in maroon-black with the kumkum header. |
 
 ## Clipboard
 
@@ -86,6 +89,8 @@ Plain HTML, CSS and JavaScript modules, no framework and no build step. Read `as
 
 ```
 index.html            the app
+sw.js                 offline start: keeps the app (never your documents) on the device
+about.html            public front page: what the app is, how it works
 setup.html            one-time setup: encrypts your token into config.js
 config.js             the only file a user edits
 assets/
@@ -94,16 +99,20 @@ assets/
   state.js            SyncedFile engine + synced favourites
   clips.js            shared clipboard
   organize.js         categories, search, sorting (pure functions)
+  zip.js              backup zip writer (pure functions)
+  trash.js            trash names, ages and the 30-day rule (pure functions)
+  version.js          version number + What's new notes
   meta.js             where and when each file was uploaded
   blobs.js            file cache, prefetch, duplicate check
   crypto.js           token encryption
   style.css           all styles and colour tokens
+  about.css, about.js the front page
   fonts/              Bricolage Grotesque for headings (SIL OFL)
 scripts/
   build-site.sh       copies the site and cache-busts it for deploy
   screenshots.mjs     README screenshots from a fake vault
   compose-images.mjs  frames them into the README images
-tests/e2e.mjs         136 browser checks against a fake GitHub
+tests/e2e.mjs         198 browser checks against a fake GitHub
 .github/workflows/    test on every push, deploy to Pages when green
 ```
 
@@ -122,7 +131,7 @@ Bold and warm, taken from Saurashtra and Kathiyawad in Gujarat. Every screen ope
 
 ## Ideas for next versions
 
-Pinned clips for things you paste every week, sending screenshots from laptop to phone, clips that clean themselves up after a week, a "Recent" shortcut, multi-select, and dark mode. The full list is in [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md).
+A live upload progress bar (4.1), a "Recent" shortcut, and uploads up to 100 MB. The full list is in [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md).
 
 ## License
 

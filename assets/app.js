@@ -4,10 +4,11 @@
 //   2. lock screen (password / token)
 //   3. file list: decorate -> search -> category -> sort -> render
 //   4. upload: button, drop anywhere, paste; skips exact duplicates
-//   5. file actions: preview, favourite, copy, send to app, download, rename, delete (+ undo)
+//   5. file actions: preview, favourite, copy, send to app, download, rename, delete (to the Trash, + undo)
 //   6. actions menu (the ⋯ button)
 //   7. clipboard: texts and links shared between your devices (+ the Documents / Clipboard tabs)
-//   8. small helpers (toast, modal, formatting)
+//   8. trash (restore, delete forever, 30-day clean-up), backup, install, What's new
+//   9. small helpers (toast, modal, formatting)
 
 import config from "../config.js";
 import { Vault } from "./github.js";
@@ -17,6 +18,9 @@ import { cachedMeta, rememberMeta, resolveMeta } from "./meta.js";
 import { SharedState, clearLocalState } from "./state.js";
 import { Clipboard, MAX_CLIPS, clipLink, linkParts, clipAge, normalizeClip, clearLocalClips } from "./clips.js";
 import { getBlob, prefetch, isReady, readyBlob, rememberBlob, clearBlobs, gitBlobSha } from "./blobs.js";
+import { TRASH_FOLDER, TRASH_DAYS, trashName, parseTrashName, isExpired, trashLabel, freeName } from "./trash.js";
+import { VERSION, RELEASES } from "./version.js";
+import { makeZip } from "./zip.js";
 
 const $ = (id) => document.getElementById(id);
 const TOKEN_KEY = "docsync.token";
@@ -24,6 +28,8 @@ const SORT_KEY = "docsync.sort";
 const LIST_KEY = "docsync.list.v1";
 const VIEW_KEY = "docsync.view";          // last open tab on this device
 const SEEN_KEY = "docsync.clips.seen";    // newest clip this device has seen
+const VERSION_KEY = "docsync.version.seen"; // last version whose What's new this device showed
+const PURGE_KEY = "docsync.trash.checked"; // day this device last cleaned up the trash
 const CLIP_POLL_MS = 10000;               // check for new clips while the Clipboard is open
 const MAX_BYTES = (config.maxFileMB || 25) * 1024 * 1024;
 const DEVICE = thisDevice();
@@ -62,6 +68,8 @@ function showLock(message = "") {
   state = null;
   clips = null;
   stopClipPoll();
+  document.querySelectorAll(".modal:not([hidden])").forEach((m) => closeModal(m.id));
+  closeMenu();
   $("app").hidden = true;
   $("lock").hidden = false;
   const usePassword = !!config.encryptedToken;
@@ -110,6 +118,7 @@ $("logout-btn").addEventListener("click", async () => {
   clearLocalClips();
   await clearBlobs();
   files = [];
+  trashItems = [];
   showLock("Locked. Nothing from your documents or clipboard is left on this device.");
 });
 
@@ -130,6 +139,7 @@ function openApp(v) {
     renderFiles();
   }
   loadFiles();
+  maybeShowWhatsNew();
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +156,7 @@ async function loadFiles({ quiet = false } = {}) {
     meta = await resolveMeta(vault, files);
     renderFiles();            // then fill in dates and devices
     warmFavourites();
+    dailyTrashCleanup();
   } catch (err) {
     handleError(err);
   } finally {
@@ -544,17 +555,22 @@ async function download(f) {
   try {
     if (!isReady(f)) toast(`Downloading ${f.name}…`);
     const blob = await getBlob(vault, f);
-    const url = URL.createObjectURL(new Blob([blob], { type: kindOf(f.name).mime }));
-    const a = el("a", "");
-    a.href = url;
-    a.download = f.name;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    saveBlob(new Blob([blob], { type: kindOf(f.name).mime }), f.name);
   } catch (err) {
     handleError(err);
   }
+}
+
+/** Hand a Blob to the browser as a download called `name`. */
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = el("a", "");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 // ----- Rename (one commit, no re-upload, keeps origin and favourite) -----
@@ -600,17 +616,18 @@ $("rename-form").addEventListener("submit", async (e) => {
   }
 });
 
-// ----- Delete, with Undo -----
+// ----- Delete: moves the file to the Trash (30 days), with Undo -----
 function askDelete(f) {
-  confirmAction(`Delete "${f.name}" from all devices?`, "Delete", async () => {
+  confirmAction(`Move "${f.name}" to the Trash? You can restore it for ${TRASH_DAYS} days.`, "Delete", async () => {
     const wasFav = state.isFavorite(f.path);
     const m = meta[f.path];
+    const trashPath = `${TRASH_FOLDER}/${trashName(f.name)}`;
     try {
-      await vault.remove(f.path, f.sha, DEVICE);
+      await vault.moveToTrash(f.path, f.sha, trashPath, DEVICE);
       files = files.filter((x) => x.path !== f.path);
       state.forgetPath(f.path).catch(() => {});
       renderFiles();
-      toast(`Deleted ${f.name}`, false, { label: "Undo", run: () => undoDelete(f, wasFav, m) });
+      toast(`Moved ${f.name} to Trash`, false, { label: "Undo", run: () => undoDelete(f, trashPath, wasFav, m) });
     } catch (err) {
       handleError(err);
       loadFiles({ quiet: true });
@@ -618,17 +635,23 @@ function askDelete(f) {
   });
 }
 
-// git still has the file's bytes, so undo just points the path back at them
-async function undoDelete(f, wasFav, m) {
+// Undo = restore from the trash straight away, favourite and origin included
+async function undoDelete(f, trashPath, wasFav, m) {
   try {
-    await vault.restore(f.path, f.sha, m ? `${m.device || DEVICE}, ${m.via || "upload"}` : `${DEVICE}, restore`);
-    if (m) rememberMeta(f.path, f.sha, m);
-    if (wasFav) state.toggleFavorite(f.path).catch(() => {});
-    toast(`Restored ${f.name}`);
+    const saved = await restoreFile(trashPath, f.sha, f.name, m);
+    if (wasFav) state.toggleFavorite(saved.path).catch(() => {});
+    toast(`Restored ${saved.name}`);
     await loadFiles({ quiet: true });
   } catch (err) {
     handleError(err);
   }
+}
+
+/** Put a trashed file back under its old name (or "name (2)" if that is taken now). */
+async function restoreFile(trashPath, sha, name, m) {
+  const saved = await vault.restoreFromTrash(trashPath, sha, freeName(name, new Set(files.map((x) => x.name))), DEVICE);
+  if (m) rememberMeta(saved.path, sha, m);
+  return saved;
 }
 
 // ---------------------------------------------------------------------------
@@ -1001,7 +1024,194 @@ $("clip-clear").addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Helpers
+// 8. Trash and What's new
+//    Trash lives in .trash/<stamp>__<name> in the vault (see trash.js). Files
+//    older than 30 days are removed for good when the Trash is opened, and
+//    at most once a day after the file list loads.
+// ---------------------------------------------------------------------------
+let trashItems = [];   // [{path, sha, size, name, deletedAt}] newest first
+
+async function readTrash() {
+  const raw = await vault.listFolder(TRASH_FOLDER);
+  const items = raw
+    .map((f) => ({ ...f, ...parseTrashName(f.name) }))
+    .filter((f) => f.deletedAt)
+    .sort((a, b) => b.deletedAt - a.deletedAt);
+  const old = items.filter((f) => isExpired(f.deletedAt));
+  if (old.length) {
+    await vault.purge(old.map((f) => f.path), `Empty trash: ${old.length} file${old.length > 1 ? "s" : ""} older than ${TRASH_DAYS} days [${DEVICE}]`);
+  }
+  local.set(PURGE_KEY, new Date().toDateString());
+  return items.filter((f) => !isExpired(f.deletedAt));
+}
+
+function dailyTrashCleanup() {
+  if (local.get(PURGE_KEY) === new Date().toDateString()) return;
+  readTrash().catch(() => { /* try again next time, never bother the user */ });
+}
+
+async function openTrash() {
+  openModal("trash");
+  $("trash-loading").hidden = trashItems.length > 0;
+  renderTrash();
+  try {
+    trashItems = await readTrash();
+  } catch (err) {
+    handleError(err);
+  } finally {
+    $("trash-loading").hidden = true;
+    renderTrash();
+  }
+}
+
+function renderTrash() {
+  $("trash-list").replaceChildren(...trashItems.map(trashRow));
+  const loading = !$("trash-loading").hidden;
+  $("trash-empty").hidden = loading || trashItems.length > 0;
+  $("trash-foot").hidden = trashItems.length === 0;
+  $("trash-count").textContent = `${trashItems.length} file${trashItems.length === 1 ? "" : "s"}`;
+}
+
+function trashRow(f) {
+  const kind = kindOf(f.name);
+  const li = el("li", "trash-item");
+  const icon = el("span", `file-icon ${kind.cls}`, kind.label);
+  const text = el("span", "file-text");
+  text.append(el("span", "file-name truncate", f.name), el("span", "file-meta", trashLabel(f.deletedAt)));
+  const restore = el("button", "btn btn-ghost btn-sm", "Restore");
+  restore.type = "button";
+  restore.addEventListener("click", () => restoreFromTrash(f, restore));
+  const forever = iconButton(`Delete ${f.name} forever`, TRASH, () => askDeleteForever(f));
+  li.append(icon, text, restore, forever);
+  return li;
+}
+
+async function restoreFromTrash(f, btn) {
+  btn.disabled = true;
+  try {
+    const saved = await restoreFile(f.path, f.sha, f.name, null);
+    trashItems = trashItems.filter((x) => x.path !== f.path);
+    renderTrash();
+    toast(`Restored ${saved.name}`);
+    await loadFiles({ quiet: true });
+  } catch (err) {
+    btn.disabled = false;
+    handleError(err);
+  }
+}
+
+function askDeleteForever(f) {
+  confirmAction(`Delete "${f.name}" forever? This can't be undone.`, "Delete forever", async () => {
+    try {
+      await vault.purge([f.path], `Delete forever ${f.name} [${DEVICE}]`);
+      trashItems = trashItems.filter((x) => x.path !== f.path);
+      renderTrash();
+      toast(`Deleted ${f.name} forever`);
+    } catch (err) {
+      handleError(err);
+    }
+  });
+}
+
+$("trash-btn").addEventListener("click", openTrash);
+$("trash-clear").addEventListener("click", () => {
+  const n = trashItems.length;
+  confirmAction(`Delete all ${n} file${n === 1 ? "" : "s"} in the Trash forever? This can't be undone.`, "Empty trash", async () => {
+    try {
+      await vault.purge(trashItems.map((f) => f.path), `Empty trash: ${n} file${n === 1 ? "" : "s"} [${DEVICE}]`);
+      trashItems = [];
+      renderTrash();
+      toast("Trash emptied");
+    } catch (err) {
+      handleError(err);
+    }
+  });
+});
+
+// ----- Backup: every document in one zip, straight from the vault -----
+async function backup() {
+  if (!files.length) return toast("Nothing to back up yet.");
+  const btn = $("backup-btn");
+  btn.disabled = true;
+  try {
+    const entries = [];
+    for (const [i, f] of files.entries()) {
+      toast(`Preparing backup: ${i + 1} of ${files.length}`);
+      const blob = await getBlob(vault, f);
+      const date = meta[f.path]?.date ? new Date(meta[f.path].date) : new Date();
+      entries.push({ name: f.name, data: new Uint8Array(await blob.arrayBuffer()), date });
+    }
+    const zip = new Blob(makeZip(entries), { type: "application/zip" });
+    const day = new Date().toISOString().slice(0, 10);
+    saveBlob(zip, `a-really-helpful-tool-backup-${day}.zip`);
+    toast(`Backup ready: ${files.length} document${files.length === 1 ? "" : "s"}, ${formatSize(zip.size)}`);
+  } catch (err) {
+    handleError(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+$("backup-btn").addEventListener("click", backup);
+
+// ----- Install as an app (+ offline start through sw.js) -----
+let installPrompt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function syncInstall() {
+  $("install-btn").hidden = isStandalone() || !(installPrompt || isIOS());
+}
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();          // show our own quiet link instead of the browser banner
+  installPrompt = e;
+  syncInstall();
+});
+window.addEventListener("appinstalled", () => { installPrompt = null; syncInstall(); toast("Installed. Open it from your home screen."); });
+$("install-btn").addEventListener("click", async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    syncInstall();
+  } else {
+    openModal("install-help");
+  }
+});
+syncInstall();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* still works online */ });
+
+// ----- What's new: opens once per device after an update, and from the links -----
+function renderWhatsNew() {
+  const body = $("whatsnew-body");
+  if (body.childElementCount) return;
+  body.append(...RELEASES.map((r, i) => {
+    const sec = el("section", i === 0 ? "release latest" : "release");
+    const head = el("div", "release-head");
+    head.append(el("h4", "release-version", `v${r.version}`));
+    if (i === 0) head.append(el("span", "release-badge", "Latest"));
+    const ul = el("ul", "release-items");
+    for (const [lead, rest] of r.items) {
+      const li = el("li");
+      li.append(el("strong", null, lead), document.createTextNode(`: ${rest}`));
+      ul.append(li);
+    }
+    sec.append(head, ul);
+    return sec;
+  }));
+}
+function openWhatsNew() {
+  renderWhatsNew();
+  local.set(VERSION_KEY, VERSION);
+  openModal("whatsnew");
+}
+function maybeShowWhatsNew() {
+  if (local.get(VERSION_KEY) !== VERSION) openWhatsNew();
+}
+$("whatsnew-btn").addEventListener("click", openWhatsNew);
+$("lock-whatsnew").addEventListener("click", openWhatsNew);
+document.querySelectorAll(".version").forEach((e) => (e.textContent = `v${VERSION}`));
+
+// ---------------------------------------------------------------------------
+// 9. Helpers
 // ---------------------------------------------------------------------------
 function openModal(id) { $(id).hidden = false; }
 function closeModal(id) {
