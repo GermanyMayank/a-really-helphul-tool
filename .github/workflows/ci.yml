@@ -73,7 +73,7 @@ jobs:
             (cd /tmp/preview && ./scripts/build-site.sh "$GITHUB_WORKSPACE/_site/preview" "pre-$(git rev-parse --short=8 HEAD)")
           fi
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
