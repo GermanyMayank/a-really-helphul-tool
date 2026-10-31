@@ -80,6 +80,11 @@
     </header>
     <div class="offline" id="offline" hidden>You're offline. Files you opened before still work.</div>
 
+    <!-- pull to refresh (phones) -->
+    <div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-ring"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v4h-4"/></svg></span></div>
+    <!-- new files from another device while you're scrolled down -->
+    <button id="new-pill" class="new-pill" type="button" hidden></button>
+
     <main class="container">
       <!-- Two sections: your documents, and a clipboard shared between devices -->
       <section id="docs-view" role="tabpanel" aria-labelledby="tab-docs">
@@ -95,6 +100,9 @@
             <option value="name">Name</option>
             <option value="size">Largest</option>
           </select>
+          <button class="select-btn" id="select-btn" type="button" aria-pressed="false" title="Select files">
+            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg><span>Select</span>
+          </button>
         </div>
 
         <!-- Upload progress: one bar for the whole batch, then a row per file -->
@@ -118,6 +126,14 @@
           </section>
           <h2 class="section-title" id="all-title" hidden>All documents</h2>
           <ul id="file-list" class="file-list"></ul>
+          <!-- first visit on a device: placeholder rows shaped like the real list -->
+          <ul id="skeleton" class="file-list skeleton" hidden aria-hidden="true">
+            <li><span class="sk-icon"></span><span class="sk-lines"><span></span><span></span></span></li>
+            <li><span class="sk-icon"></span><span class="sk-lines"><span></span><span></span></span></li>
+            <li><span class="sk-icon"></span><span class="sk-lines"><span></span><span></span></span></li>
+            <li><span class="sk-icon"></span><span class="sk-lines"><span></span><span></span></span></li>
+            <li><span class="sk-icon"></span><span class="sk-lines"><span></span><span></span></span></li>
+          </ul>
           <div id="empty" class="empty" hidden>
             <p>No documents yet.</p>
             <p class="muted small">Upload something and it will show up on every device.</p>
@@ -233,6 +249,19 @@
         <button class="btn btn-primary" id="rename-ok" type="submit">Rename</button>
       </div>
     </form>
+  </div>
+
+  <!-- ============ SELECTION BAR ============ -->
+  <div id="selbar" class="selbar" hidden role="toolbar" aria-label="Selected files">
+    <button class="icon-btn" id="sel-done" type="button" aria-label="Stop selecting"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <span class="sel-count" id="sel-count" aria-live="polite">0 selected</span>
+    <button class="sel-btn" id="sel-all" type="button">All</button>
+    <span class="sel-actions">
+      <button class="icon-btn" id="sel-download" type="button" aria-label="Download selected" title="Download"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+      <button class="icon-btn" id="sel-fav" type="button" aria-label="Favourite selected" title="Favourite"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button>
+      <button class="icon-btn" id="sel-share" type="button" aria-label="Send selected to an app" title="Send" hidden><svg viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg></button>
+      <button class="icon-btn danger" id="sel-trash" type="button" aria-label="Move selected to Trash" title="Move to Trash"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    </span>
   </div>
 
   <!-- ============ TRASH ============ -->

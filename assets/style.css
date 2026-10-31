@@ -588,6 +588,120 @@ textarea.input { height: 260px; padding: 12px; font: 12px/1.5 ui-monospace, Menl
   .btn-upload { box-shadow: 0 0 0 4px var(--page), 0 0 0 6px var(--haldi), 0 16px 30px rgba(0,0,0,.5); }
 }
 
+/* ---------- v4.2 "Instant": select, swipe, glow, skeleton, pull to refresh ---------- */
+html { overscroll-behavior-y: none; }   /* our own pull to refresh, not the browser's */
+.select-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 16px; border-radius: 16px;
+  border: 0; background: var(--surface); color: var(--text); font: 600 15px var(--font); box-shadow: var(--lift); cursor: pointer;
+}
+.select-btn svg { width: 20px; height: 20px; }
+.select-btn[aria-pressed="true"] { background: var(--ink); color: #fff; }
+@media (max-width: 600px) { .select-btn span { display: none; } .select-btn { padding: 0 14px; } }
+
+/* round check on each row: shown while selecting, and on hover on laptops */
+.file { position: relative; touch-action: pan-y; -webkit-touch-callout: none; }
+.check {
+  flex-shrink: 0; width: 0; height: 26px; margin-right: -12px; padding: 0; border: 0; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: transparent; cursor: pointer; opacity: 0;
+  transition: width .2s cubic-bezier(.2,.8,.2,1), margin .2s cubic-bezier(.2,.8,.2,1), opacity .15s;
+}
+.check svg { width: 16px; height: 16px; stroke: #fff; stroke-width: 2.6; transform: scale(0); transition: transform .18s cubic-bezier(.3,1.6,.5,1); }
+.check::before { content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--border-strong); transition: box-shadow .15s, background .15s; }
+.check svg { position: relative; }
+body.selecting .check, .file:hover .check, .check:focus-visible { width: 26px; margin-right: 0; opacity: 1; }
+.file.selected .check::before { background: var(--kumkum); box-shadow: none; }
+.file.selected .check svg { transform: scale(1); }
+.file.selected { background: var(--kumkum-soft); }
+body.selecting .file-actions { opacity: .35; pointer-events: none; }
+body.selecting #favs, body.selecting .btn-upload { display: none; }
+@media (hover: none) { .file:hover .check { width: 0; margin-right: -12px; opacity: 0; } body.selecting .file .check { width: 26px; margin-right: 0; opacity: 1; } }
+
+/* selection bar: floats at the bottom, within thumb reach */
+.selbar {
+  position: fixed; z-index: 15; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(560px, calc(100% - 24px)); display: flex; align-items: center; gap: 6px;
+  padding: 8px 8px 8px 6px; border-radius: 20px; background: var(--ink); color: #fff; box-shadow: 0 16px 40px rgba(28,20,20,.35);
+  transform: translateX(-50%); transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .2s;
+}
+@starting-style { .selbar { transform: translate(-50%, 24px); opacity: 0; } }
+.selbar .icon-btn { color: #fff; }
+.selbar .icon-btn:hover { background: rgba(255,255,255,.12); }
+.selbar .icon-btn:disabled { opacity: .35; pointer-events: none; }
+.selbar .icon-btn.danger { color: #ff9d90; }
+.selbar #sel-fav[aria-pressed="true"] svg { fill: currentColor; color: var(--haldi); }
+.sel-count { flex: 1; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sel-btn { min-height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: rgba(255,255,255,.12); color: #fff; font: 600 14px var(--font); cursor: pointer; }
+.sel-actions { display: flex; gap: 2px; }
+body.selecting .container { padding-bottom: 120px; }
+@media (prefers-color-scheme: dark) { .selbar { background: #33201d; box-shadow: 0 0 0 1px var(--border), 0 16px 40px rgba(0,0,0,.5); } }
+
+/* swipe: the row follows the finger; the colour underneath says what happens */
+.file > * { transform: translateX(var(--dx, 0px)); transition: transform .26s cubic-bezier(.2,.8,.2,1); }
+.file.swiping > * { transition: none; }
+.file.swipe-left, .file.swipe-right { overflow: hidden; }
+.file.swipe-left { background: #f6dcd9; }
+.file.swipe-right { background: #fbeccd; }
+.file.swipe-left.armed { background: var(--danger); }
+.file.swipe-right.armed { background: var(--haldi); }
+.file.swipe-left::after, .file.swipe-right::after {
+  position: absolute; top: 50%; font-weight: 700; font-size: 14px; transform: translateY(-50%) scale(.85); transition: transform .18s cubic-bezier(.3,1.6,.5,1), color .15s;
+}
+.file.swipe-left::after { content: "Trash"; right: 20px; color: var(--danger); }
+.file.swipe-right::after { content: "♥ Favourite"; left: 20px; color: #7a4a00; }
+.file.armed::after { transform: translateY(-50%) scale(1.08); }
+.file.swipe-left.armed::after { color: #fff; }
+.file.swipe-right.armed::after { color: #2a1a00; }
+.file.leaving { animation: row-out .2s ease-in forwards; }
+@keyframes row-out { to { opacity: 0; } }
+@media (prefers-color-scheme: dark) { .file.swipe-left { background: #3a1815; } .file.swipe-right { background: #3a2c10; } .file.swipe-right::after { color: #f2c14e; } }
+
+/* new file: slides in with a short haldi glow */
+.file.fresh { animation: fresh-in .45s cubic-bezier(.2,.8,.2,1) both; }
+.file.fresh::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(227,162,26,.28), rgba(227,162,26,.08)); box-shadow: inset 3px 0 0 var(--haldi);
+  animation: fresh-glow 2.4s ease-out forwards;
+}
+@keyframes fresh-in { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes fresh-glow { 0%, 45% { opacity: 1; } 100% { opacity: 0; } }
+
+/* first visit: placeholder rows with a soft moving sheen (transform only) */
+.skeleton li { display: flex; align-items: center; gap: 14px; padding: 14px; border-top: 1px solid var(--line); }
+.skeleton li:first-child { border-top: 0; }
+.sk-icon, .sk-lines span { position: relative; overflow: hidden; background: var(--subtle); }
+.sk-icon { width: 40px; height: 46px; border-radius: 7px 12px 7px 7px; flex-shrink: 0; }
+.sk-lines { flex: 1; display: grid; gap: 8px; }
+.sk-lines span { height: 12px; border-radius: 6px; }
+.sk-lines span:first-child { width: 62%; }
+.sk-lines span:last-child { width: 38%; height: 10px; }
+.sk-icon::after, .sk-lines span::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); animation: sheen 1.2s ease-in-out infinite;
+}
+@keyframes sheen { to { transform: translateX(100%); } }
+@media (prefers-color-scheme: dark) { .sk-icon::after, .sk-lines span::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent); } }
+
+/* pull to refresh */
+.ptr {
+  position: fixed; z-index: 12; left: 50%; top: calc(env(safe-area-inset-top) - 44px); width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface); color: var(--accent-text); box-shadow: var(--lift); opacity: 0; pointer-events: none;
+  transform: translate(-50%, var(--pull, 0px)); transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .2s;
+}
+.ptr.pulling { opacity: 1; transition: none; }
+.ptr.refreshing { opacity: 1; transition: transform .2s; }
+.ptr-ring { display: grid; place-items: center; transform: rotate(var(--turn, 0deg)); }
+.ptr svg { width: 22px; height: 22px; stroke-width: 2.4; }
+.ptr.ready { background: var(--haldi); color: var(--ink); }
+.ptr.refreshing .ptr-ring { animation: spin .7s linear infinite; }
+
+/* "2 new files" pill when they arrive off-screen */
+.new-pill {
+  position: fixed; z-index: 12; left: 50%; top: calc(env(safe-area-inset-top) + 12px); transform: translateX(-50%);
+  min-height: 40px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--haldi); color: var(--ink);
+  font: 700 14px var(--font); box-shadow: 0 10px 24px rgba(0,0,0,.2); cursor: pointer; transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .2s;
+}
+@starting-style { .new-pill { transform: translate(-50%, -20px); opacity: 0; } }
+
 /* ---------- Motion (v4.1.1): everything slides or fades with transform and
    opacity only, which the GPU draws at the screen's own rate (60-120 fps).
    @starting-style animates elements as their `hidden` attribute is removed. ---------- */
@@ -615,3 +729,7 @@ textarea.input { height: 260px; padding: 12px; font: 12px/1.5 ui-monospace, Menl
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* v4.2: keep messages clear of the selection bar; selected rows keep their file tiles readable */
+body.selecting .toast { bottom: calc(max(16px, env(safe-area-inset-bottom)) + 84px); }
+.file.selected .file-icon { background: var(--surface); }

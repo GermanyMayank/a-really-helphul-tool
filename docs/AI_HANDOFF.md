@@ -2,6 +2,8 @@
 
 Paste this file (and whichever source files are relevant) into ChatGPT, Claude or any coding AI to continue the project.
 
+Read `docs/DESIGN-PRINCIPLES.md` first: instant first, network second.
+
 ## What this is
 
 "a really helpful tool" (repo name docsync): a static web app on GitHub Pages that stores documents in a private GitHub repo through the GitHub REST Contents API. Owner unlocks with a password that decrypts a fine-grained GitHub token kept in `config.js`. Read `README.md` and `docs/ARCHITECTURE.md` for the full picture.

@@ -116,6 +116,9 @@ let stateWrites = 0;
 let publicVault = false;
 let uploadDelay = 0;          // ms each document upload takes (to watch the progress bar)
 let failNextUpload = false;   // the next document upload answers 500 (to test Retry)
+let commitDelay = 0;          // ms each commit takes (to prove the UI doesn't wait for it)
+let listDelay = 0;            // ms the files/ listing takes (to prove the cached list shows first)
+let notModified = 0;          // how many listings were answered "304 Not Modified"
 async function mockGitHub(context) {
   // a request the app cancelled can't be answered any more: ignore that
   await context.route("https://api.github.com/**", (route) => handleGitHub(route).catch(() => {}));
@@ -158,6 +161,7 @@ async function handleGitHub(route) {
       gitCommits.set(sha, { tree, message });
       return json(201, { sha });
     }
+    if (sub === "/git/refs/heads/main" && m === "PATCH" && commitDelay) await new Promise((r) => setTimeout(r, commitDelay));
     if (sub === "/git/refs/heads/main" && m === "PATCH") {
       const { sha } = req.postDataJSON();
       const c = gitCommits.get(sha);
@@ -179,7 +183,14 @@ async function handleGitHub(route) {
     if (m === "GET" && !vault.has(path)) {
       const items = [...vault].filter(([p]) => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/"))
         .map(([p, f]) => ({ type: "file", name: p.split("/").pop(), path: p, sha: f.sha, size: f.buf.length }));
-      if (items.length) return json(200, items);
+      if (items.length) {
+        if (path === "files" && listDelay) await new Promise((r) => setTimeout(r, listDelay));
+        // ETag like GitHub: conditional requests get 304 when nothing changed
+        const etag = `"${createHash("sha1").update(JSON.stringify(items)).digest("hex")}"`;
+        const h = { ...cors, "content-type": "application/json", ETag: etag, "Access-Control-Expose-Headers": "ETag" };
+        if (req.headers()["if-none-match"] === etag) { notModified++; return route.fulfill({ status: 304, headers: h }); }
+        return route.fulfill({ status: 200, headers: h, body: JSON.stringify(items) });
+      }
     }
     if (m === "GET") {
       const f = vault.get(path);
@@ -330,8 +341,13 @@ for (const [label, opts, device] of [
   assert((await p.textContent("#lock-error")).includes("Wrong password"), `${label}: wrong password rejected`);
 
   await p.fill("#lock-input", PASSWORD);
+  listDelay = 900;
   await p.click("#lock-btn");
+  await p.waitForSelector("#skeleton:not([hidden])", { timeout: 5000 });
+  assert(true, `${label}: first visit shows placeholder rows, not a blank page`);
   await p.waitForSelector("#app:not([hidden]) .file", { timeout: 30000 });
+  listDelay = 0;
+  assert(await p.isHidden("#skeleton"), `${label}: placeholder rows make way for the real list`);
   await p.waitForSelector("#whatsnew:not([hidden])");
   assert((await p.textContent("#whatsnew .release.latest .release-version")) === `v${VERSION.split(".").slice(0, 2).join(".")}`, `${label}: What's new opens once after the update`);
   await p.screenshot({ path: SHOTS + `${label}-0-whatsnew.png` });
@@ -425,7 +441,8 @@ for (const [label, opts, device] of [
   failNextUpload = true;
   await p.setInputFiles("#file-input", [{ name: "Retry me.pdf", mimeType: "application/pdf", buffer: Buffer.from("retry") }]);
   await p.waitForSelector("#queue li.failed .retry");
-  assert((await p.textContent("#upbar-text")) === "0 uploaded, 1 failed", `${label}: the bar reports the failure`);
+  await p.waitForFunction(() => document.getElementById("upbar-text").textContent === "0 uploaded, 1 failed", null, { timeout: 5000 });
+  assert(true, `${label}: the bar reports the failure`);
   await p.click("#queue li.failed .retry");
   await until(() => vault.has("files/Retry me.pdf"));
   await p.waitForFunction(() => !document.querySelector("#queue li.failed"));
@@ -492,6 +509,7 @@ for (const [label, opts, device] of [
   await p.fill("#rename-input", "CV Jay Gohil");
   await p.click("#rename-ok");
   await p.waitForFunction(() => [...document.querySelectorAll(".file-name")].some((e) => e.textContent === "CV Jay Gohil.docx"));
+  await until(() => vault.has("files/CV Jay Gohil.docx"));
   assert(vault.has("files/CV Jay Gohil.docx") && !vault.has("files/Lebenslauf.docx"), `${label}: rename keeps the extension and moves the file`);
   await p.waitForTimeout(400);
   assert(favorites().includes("files/CV Jay Gohil.docx"), `${label}: renamed file is still a favourite`);
@@ -513,9 +531,11 @@ for (const [label, opts, device] of [
   await menuAction(p, "notes (2).txt", "delete");
   await p.click("#confirm-ok");
   await p.waitForFunction(() => document.querySelectorAll(".file").length === 6);
+  await until(() => !vault.has("files/notes (2).txt"));
   assert(!vault.has("files/notes (2).txt"), `${label}: delete works`);
   await p.click("#toast-action");
   await p.waitForFunction(() => document.querySelectorAll(".file").length === 7, null, { timeout: 10000 });
+  await until(() => vault.has("files/notes (2).txt") && trashed().length === 0);
   assert(vault.has("files/notes (2).txt") && trashed().length === 0, `${label}: undo brings the deleted file back (and empties the trash again)`);
 
   // ---------------------------------------------------------------- trash
@@ -523,6 +543,7 @@ for (const [label, opts, device] of [
   assert((await p.textContent("#confirm-text")).includes("Trash"), `${label}: delete says the file goes to the Trash`);
   await p.click("#confirm-ok");
   await p.waitForFunction(() => document.querySelectorAll(".file").length === 6);
+  await until(() => trashed().length === 1);
   assert(trashed().length === 1 && trashed()[0].endsWith("__notes (2).txt") && lastMessage("notes (2).txt") === `Delete notes (2).txt [${device}]`, `${label}: delete moves the file to .trash/ in one commit`);
   // an old entry from 40 days ago is cleaned up when the Trash opens
   setFile(`.trash/${trashLib.trashName("old-receipt.pdf", new Date(Date.now() - 40 * 864e5))}`, Buffer.from("old"));
@@ -565,6 +586,132 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#trash-empty:not([hidden])");
   assert(trashed().length === 0, `${label}: Empty trash removes everything`);
   await p.click("#trash [data-close]");
+  // ---------------------------------------------------------------- v4.2 "Instant"
+  const rowSel = (path) => `.file[data-path="${path}"]`;
+  // optimistic delete: the row leaves before GitHub has the commit; Undo works even mid-commit
+  commitDelay = 1500;
+  await menuAction(p, "Offer Letter", "delete");
+  const tDel = Date.now();
+  await p.click("#confirm-ok");
+  await p.waitForSelector(rowSel("files/Offer Letter.pdf"), { state: "detached" });
+  assert(Date.now() - tDel < 600 && vault.has("files/Offer Letter.pdf"), `${label}: delete is instant, GitHub catches up in the background`);
+  await p.click("#toast-action");
+  await p.waitForSelector(rowSel("files/Offer Letter.pdf"));
+  await until(() => vault.has("files/Offer Letter.pdf") && trashed().length === 0, 12000);
+  commitDelay = 0;
+  assert(vault.has("files/Offer Letter.pdf") && trashed().length === 0, `${label}: Undo during the commit still brings it back`);
+  await p.waitForFunction(() => document.getElementById("toast").hidden, null, { timeout: 10000 });
+
+  // select mode: pick, download as one zip, bulk Trash in one commit, one Undo
+  await p.click("#select-btn");
+  await p.waitForSelector("#selbar:not([hidden])");
+  await p.click(rowSel("files/notes.txt") + " .file-main");
+  await p.click(rowSel("files/Mietvertrag.pdf") + " .file-main");
+  assert((await p.textContent("#sel-count")) === "2 selected" && await p.isHidden("#preview"), `${label}: in select mode a tap selects instead of opening`);
+  const [selDl] = await Promise.all([p.waitForEvent("download"), p.click("#sel-download")]);
+  const selZip = tmpdir() + `/helpful-sel-${label}.zip`;
+  await selDl.saveAs(selZip);
+  const selNames = JSON.parse(zipCheck(selZip)).map(([n]) => n).sort();
+  assert(JSON.stringify(selNames) === '["Mietvertrag.pdf","notes.txt"]', `${label}: download of the selection is one zip with exactly those files`);
+  await p.fill("#search", "Offer");
+  await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 1);
+  await p.click("#sel-all");
+  assert((await p.textContent("#sel-count")) === "3 selected", `${label}: All adds what the search shows`);
+  await p.fill("#search", "");
+  await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 6);
+  await p.screenshot({ path: SHOTS + `${label}-9-select.png` });
+  await p.click("#sel-trash");
+  assert((await p.textContent("#confirm-text")).includes("3 files"), `${label}: bulk delete asks first`);
+  await p.click("#confirm-ok");
+  await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 3);
+  assert(await p.isHidden("#selbar"), `${label}: rows leave at once and select mode ends`);
+  await until(() => trashed().length === 3);
+  assert(lastMessage("notes.txt").startsWith(`Delete 3 files [${device}]`) && lastMessage("Offer Letter.pdf") === lastMessage("notes.txt"), `${label}: three files, one commit`);
+  await p.click("#toast-action");
+  await until(() => trashed().length === 0 && vault.has("files/notes.txt") && vault.has("files/Mietvertrag.pdf") && vault.has("files/Offer Letter.pdf"));
+  await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 6);
+  assert(lastMessage("notes.txt").startsWith(`Restore 3 files [${device}]`), `${label}: one Undo brings all three back in one commit`);
+  await p.waitForFunction(() => document.getElementById("toast").hidden, null, { timeout: 10000 });
+
+  if (label === "desktop") {
+    // Ctrl+A, Shift+click range, Esc
+    await p.click("#select-btn");
+    await p.keyboard.press("Control+a");
+    assert((await p.textContent("#sel-count")) === "6 selected", "desktop: Ctrl+A selects everything shown");
+    await p.click("#sel-all");
+    const rows = await p.$$eval("#file-list .file", (els) => els.map((e) => e.dataset.path));
+    await p.click(rowSel(rows[1]) + " .file-main");
+    await p.click(rowSel(rows[3]) + " .file-main", { modifiers: ["Shift"] });
+    assert((await p.textContent("#sel-count")) === "3 selected", "desktop: Shift+click selects a range");
+    await p.keyboard.press("Escape");
+    assert(await p.isHidden("#selbar") && !(await p.evaluate(() => document.body.classList.contains("selecting"))), "desktop: Esc leaves select mode");
+  } else {
+    // touch gestures, with real pointer events
+    const gesture = (path, { dx = 0, hold = 0 }) => p.evaluate(async ({ path, dx, hold }) => {
+      const li = document.querySelector(`.file[data-path="${path}"]`);
+      const r = li.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const o = { pointerId: 7, pointerType: "touch", bubbles: true, isPrimary: true };
+      li.dispatchEvent(new PointerEvent("pointerdown", { ...o, clientX: x, clientY: y }));
+      if (hold) await new Promise((res) => setTimeout(res, hold));
+      for (let i = 1; i <= 12 && dx; i++) {
+        li.dispatchEvent(new PointerEvent("pointermove", { ...o, clientX: x + (dx * i) / 12, clientY: y }));
+        await new Promise((res) => requestAnimationFrame(res));
+      }
+      li.dispatchEvent(new PointerEvent("pointerup", { ...o, clientX: x + dx, clientY: y }));
+    }, { path, dx, hold });
+    await gesture("files/notes.txt", { hold: 600 });
+    assert((await p.textContent("#sel-count")) === "1 selected" && await p.isVisible("#selbar"), "iphone: long-press starts selecting");
+    await p.click("#sel-done");
+    await p.waitForSelector("#selbar", { state: "hidden" });
+    await gesture("files/notes.txt", { dx: 200 });
+    await until(() => favorites().includes("files/notes.txt"));
+    assert(favorites().includes("files/notes.txt"), "iphone: swipe right favourites");
+    await p.waitForTimeout(400);
+    await gesture("files/notes.txt", { dx: -260 });
+    await p.waitForSelector(rowSel("files/notes.txt"), { state: "detached" });
+    await until(() => !vault.has("files/notes.txt"));
+    assert(!vault.has("files/notes.txt"), "iphone: swipe left moves to the Trash");
+    await p.click("#toast-action");
+    await until(() => vault.has("files/notes.txt") && favorites().includes("files/notes.txt"));
+    assert(vault.has("files/notes.txt") && favorites().includes("files/notes.txt"), "iphone: Undo after a swipe brings it back, favourite too");
+    await p.waitForSelector(rowSel("files/notes.txt"));
+    await p.waitForFunction(() => document.getElementById("toast").hidden, null, { timeout: 10000 });
+
+    // pull to refresh
+    setFile("files/Pulled in.pdf", Buffer.from("pull"));
+    await p.evaluate(() => scrollTo(0, 0));
+    await p.evaluate(async () => {
+      const t = (y) => new Touch({ identifier: 3, target: document.body, clientX: 180, clientY: y });
+      document.dispatchEvent(new TouchEvent("touchstart", { touches: [t(150)], bubbles: true }));
+      for (let i = 1; i <= 10; i++) { document.dispatchEvent(new TouchEvent("touchmove", { touches: [t(150 + i * 20)], bubbles: true })); await new Promise((r) => requestAnimationFrame(r)); }
+      document.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+    });
+    await p.waitForSelector(rowSel("files/Pulled in.pdf") + ".fresh", { timeout: 8000 });
+    assert(true, "iphone: pull to refresh brings in a new file, with a glow");
+    vault.delete("files/Pulled in.pdf");
+    await p.click("#refresh-btn");
+    await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 6);
+  }
+
+  // auto refresh: "anything new?" costs nothing when nothing changed (304), new files glide in
+  await p.waitForTimeout(4200);
+  await p.evaluate(() => window.dispatchEvent(new Event("focus"))); // brings this device up to date
+  await p.waitForTimeout(4200);
+  const before304 = notModified;
+  await p.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await until(() => notModified > before304, 5000);
+  assert(notModified > before304, `${label}: unchanged list answered with 304 (free)`);
+  setFile("files/From the other phone.pdf", Buffer.from("other"));
+  await p.waitForTimeout(4200);
+  await p.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await p.waitForSelector(rowSel("files/From the other phone.pdf") + ".fresh", { timeout: 8000 });
+  assert(true, `${label}: a file from another device appears by itself, glowing`);
+  await p.screenshot({ path: SHOTS + `${label}-10-fresh.png` });
+  vault.delete("files/From the other phone.pdf");
+  await p.click("#refresh-btn");
+  await p.waitForFunction(() => document.querySelectorAll("#file-list .file").length === 6);
+
   // backup: every document in one zip that opens anywhere
   const [zipDl] = await Promise.all([p.waitForEvent("download"), p.click("#backup-btn")]);
   assert(/^a-really-helpful-tool-backup-\d{4}-\d{2}-\d{2}\.zip$/.test(zipDl.suggestedFilename()), `${label}: backup downloads as a dated zip`);
@@ -710,10 +857,14 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#docs-view:not([hidden]) .file");
   assert(await p.isHidden("#clip-view"), `${label}: back to Documents`);
 
-  // reload: remembered device, list drawn instantly from cache
+  // reload: remembered device, list drawn instantly from cache, long before GitHub answers
+  listDelay = 2000;
+  const tReload = Date.now();
   await p.reload();
   await p.waitForSelector("#app:not([hidden]) .file");
-  assert(true, `${label}: remembered device skips lock`);
+  const shownAfter = Date.now() - tReload;
+  listDelay = 0;
+  assert(shownAfter < 1500 && await p.isHidden("#skeleton"), `${label}: remembered device skips lock, list from cache in ${shownAfter} ms while GitHub takes 2 s`);
 
   // dark mode follows the device setting
   await p.emulateMedia({ colorScheme: "dark" });

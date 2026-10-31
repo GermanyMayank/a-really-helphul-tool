@@ -110,6 +110,14 @@ export class SharedState extends SyncedFile {
     }, `${on ? "Favourite" : "Unfavourite"} ${path.split("/").pop()}`);
   }
 
+  /** Favourite (on) or unfavourite several files in one save. */
+  setFavorite(paths, on) {
+    return this.change((s) => {
+      s.favorites = s.favorites.filter((p) => !paths.includes(p));
+      if (on) s.favorites.unshift(...paths);
+    }, `${on ? "Favourite" : "Unfavourite"} ${paths.length} file${paths.length === 1 ? "" : "s"}`);
+  }
+
   /** Keep favourites pointing at the right file after a rename / delete. */
   renamePath(oldPath, newPath) {
     if (!this.isFavorite(oldPath)) return Promise.resolve();

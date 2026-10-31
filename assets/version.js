@@ -3,10 +3,19 @@
 // release (also in package.json and CHANGELOG.md); the What's new window opens
 // once on each device after the version changes.
 
-export const VERSION = "4.1.1";
+export const VERSION = "4.2.0";
 
 // Newest first. Plain text only (rendered with textContent).
 export const RELEASES = [
+  {
+    version: "4.2",
+    items: [
+      ["Select", "tap Select (or long-press on a phone) to download, favourite, send or delete many files at once."],
+      ["Swipe", "on a phone, swipe a file left to move it to the Trash, right to favourite it."],
+      ["Instant", "deletes and renames happen right away; GitHub catches up in the background."],
+      ["Always up to date", "files from your other devices appear by themselves, glowing. Pull down to refresh."],
+    ],
+  },
   {
     version: "4.1",
     items: [

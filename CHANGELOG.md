@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.2.0 - Instant
+
+New core principle: **instant first, network second** (see `docs/DESIGN-PRINCIPLES.md`).
+
+**Select mode**
+- Select button in the toolbar, long-press on phones, Ctrl/Cmd+click, Shift+click ranges, Ctrl+A, Esc
+- Floating selection bar: download (one file directly, several as one zip), favourite, send to an app (phones), move to Trash, All/None (follows search and category)
+- Moving many files to the Trash is one commit, and one Undo brings them all back in one commit
+
+**Feels instant**
+- Delete, rename and bulk actions change the screen at once and commit in the background; failures roll back with a message; Undo works even mid-commit
+- Auto refresh: checks for new files when the app comes back into view and every 20 s, using ETags (unchanged = HTTP 304, free); files from other devices slide in with a haldi glow, or a "2 new files" pill if you're scrolled away
+- Your own uploads glow and scroll into view
+- First visit on a device shows placeholder rows instead of a spinner
+
+**Phones**
+- Swipe a file left to move it to the Trash, right to favourite it (follows the finger, light vibration on Android, Undo always offered)
+- Pull to refresh with our own indicator (the browser's own is turned off)
+
+**Under the hood**
+- `Vault.listIfChanged` (conditional listing), `moveManyToTrash`, `restoreMany`; `SharedState.setFavorite` for many files in one save
+- Tests: 260 checks, including: the cached list shows while GitHub takes 2 s, a delete leaves the screen before its commit lands, Undo mid-commit, one-commit bulk delete and restore, selection zip contents, Shift ranges, long-press, swipes, pull to refresh, 304 on unchanged lists, files from another device appearing by themselves
+
 ## 4.1.1 (2026-10-31) - smoother
 
 - Upload bar glides frame by frame (requestAnimationFrame, 60-120 fps) instead of jumping: even an instant upload fills over about half a second, and while GitHub saves a file the bar keeps creeping (never past that file's share) instead of sitting still

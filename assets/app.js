@@ -69,6 +69,8 @@ function showLock(message = "") {
   state = null;
   clips = null;
   stopClipPoll();
+  clearInterval(autoTimer);
+  if (sel.on) setSelecting(false);
   document.querySelectorAll(".modal:not([hidden])").forEach((m) => closeModal(m.id));
   closeMenu();
   $("app").hidden = true;
@@ -140,30 +142,91 @@ function openApp(v) {
     renderFiles();
   }
   loadFiles();
+  startAutoRefresh();
   maybeShowWhatsNew();
 }
 
 // ---------------------------------------------------------------------------
 // 3. File list
 // ---------------------------------------------------------------------------
-async function loadFiles({ quiet = false } = {}) {
-  if (!quiet && !files.length) $("loading").hidden = false;
+// Design principle: instant first, network second (docs/DESIGN-PRINCIPLES.md).
+// The list on screen is always the last known one; the network only ever
+// updates it, and new files announce themselves with a glow.
+async function loadFiles({ quiet = false, scrollToNew = false } = {}) {
+  if (!quiet && !files.length) $("skeleton").hidden = false;
   try {
     const [list] = await Promise.all([vault.list(), state.load().catch(() => null)]);
-    files = list;
-    local.set(LIST_KEY, JSON.stringify(files));
-    meta = cachedMeta();
-    renderFiles();            // show right away with what we know
+    const added = applyList(list);
     meta = await resolveMeta(vault, files);
     renderFiles();            // then fill in dates and devices
+    if (added.length) showNew(added, scrollToNew);
     warmFavourites();
     dailyTrashCleanup();
   } catch (err) {
     handleError(err);
   } finally {
-    $("loading").hidden = true;
+    $("skeleton").hidden = true;
   }
 }
+
+/** Put a fresh listing on screen. Returns the files that weren't there before. */
+const freshPaths = new Set();
+function applyList(list) {
+  const before = new Set(files.map((f) => f.path));
+  const added = before.size ? list.filter((f) => !before.has(f.path)) : [];
+  files = list;
+  local.set(LIST_KEY, JSON.stringify(files));
+  meta = cachedMeta();
+  for (const f of added) {
+    freshPaths.add(f.path);
+    setTimeout(() => freshPaths.delete(f.path), 2600);
+  }
+  renderFiles();
+  return added;
+}
+
+/** New files glow; bring them into view (own upload) or offer a pill (other device). */
+function showNew(added, scroll) {
+  const rows = added.map((f) => document.querySelector(`.file[data-path="${CSS.escape(f.path)}"]`)).filter(Boolean);
+  const first = rows.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+  if (!first) return;
+  const r = first.getBoundingClientRect();
+  if (r.top >= 0 && r.bottom <= innerHeight) return;
+  if (scroll) return first.scrollIntoView({ behavior: "smooth", block: "center" });
+  const pill = $("new-pill");
+  pill.textContent = `${r.top < 0 ? "↑" : "↓"} ${added.length} new file${added.length > 1 ? "s" : ""}`;
+  pill.hidden = false;
+  pill.onclick = () => { pill.hidden = true; first.scrollIntoView({ behavior: "smooth", block: "center" }); };
+  clearTimeout(pill.timer);
+  pill.timer = setTimeout(() => (pill.hidden = true), 8000);
+}
+
+// Auto refresh: ask GitHub "anything new?" when you come back to the app and
+// every 20 s while it's open. Unchanged answers are free (ETag, HTTP 304).
+let autoTimer = null;
+let lastCheck = 0;
+let pendingOps = 0;        // optimistic changes still being committed: don't overwrite them
+async function checkForNew() {
+  if (!vault || document.hidden || $("app").hidden || upRunning || pendingOps) return;
+  if (Date.now() - lastCheck < 4000) return;
+  lastCheck = Date.now();
+  try {
+    const list = await vault.listIfChanged();
+    if (!list || pendingOps) return;
+    const added = applyList(list);
+    if (added.length) {
+      meta = await resolveMeta(vault, files);
+      renderFiles();
+      showNew(added, false);
+    }
+  } catch { /* offline or rate limited: the next check will try again */ }
+}
+function startAutoRefresh() {
+  clearInterval(autoTimer);
+  autoTimer = setInterval(checkForNew, 20000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForNew(); });
+window.addEventListener("focus", checkForNew);
 
 // Favourites are what you open most, so fetch small ones in the background
 function warmFavourites() {
@@ -186,6 +249,8 @@ function renderFiles() {
   const sorted = sortFiles(shown, view.sort);
   // favourites stay on top, in the chosen order
   const ordered = [...sorted.filter((f) => f.fav), ...sorted.filter((f) => !f.fav)];
+  shownPaths = ordered.map((f) => f.path);
+  for (const p of sel.paths) if (!files.some((f) => f.path === p)) sel.paths.delete(p);
 
   $("file-list").replaceChildren(...ordered.map(fileRow));
   // Favourites as big cards above the list, on the plain "All" view only
@@ -194,6 +259,7 @@ function renderFiles() {
   $("favs").hidden = favs.length === 0;
   $("all-title").hidden = favs.length === 0;
   updateHero();
+  syncSelBar();
   $("empty").hidden = files.length > 0;
   const none = files.length && !ordered.length;
   $("no-results").hidden = !none;
@@ -255,6 +321,16 @@ function fileRow(f) {
   const kind = kindOf(f.name);
   const li = el("li", "file");
   li.dataset.path = f.path;
+  if (freshPaths.has(f.path)) li.classList.add("fresh");
+  const picked = sel.paths.has(f.path);
+  li.classList.toggle("selected", picked);
+  const check = el("button", "check");
+  check.type = "button";
+  check.setAttribute("role", "checkbox");
+  check.setAttribute("aria-checked", String(picked));
+  check.setAttribute("aria-label", `Select ${f.name}`);
+  check.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12.5l3.2 3.2L17 9"/></svg>';
+  check.addEventListener("click", (e) => { if (!sel.on) setSelecting(true); toggleSel(f.path, e.shiftKey); });
 
   const main = el("button", "file-main");
   main.type = "button";
@@ -267,7 +343,13 @@ function fileRow(f) {
   text.append(el("span", "file-name truncate", f.name), metaLine);
   main.append(icon, text);
   // Supported files open the preview; everything else opens the actions menu
-  main.addEventListener("click", () => (previewable ? preview(f) : openMenu(f, main)));
+  main.addEventListener("click", (e) => {
+    if (li.dataset.noclick) return;
+    if (e.metaKey || e.ctrlKey) { if (!sel.on) setSelecting(true); return toggleSel(f.path); }
+    if (sel.on) return toggleSel(f.path, e.shiftKey);
+    previewable ? preview(f) : openMenu(f, main);
+  });
+  addGestures(li, f);
 
   // Start downloading as soon as the pointer/finger lands, so the click is instant
   if (previewable) {
@@ -284,7 +366,7 @@ function fileRow(f) {
   more.classList.add("more");
   actions.append(heart, more);
 
-  li.append(main, actions);
+  li.append(check, main, actions);
   return li;
 }
 
@@ -396,7 +478,7 @@ async function runUploads() {
   if (upItems.some((i) => i.state !== "cancelled")) announce(summaryText(p, true));
   if (ok) {
     toast(`${ok} file${ok > 1 ? "s" : ""} uploaded`);
-    await loadFiles({ quiet: true });
+    await loadFiles({ quiet: true, scrollToNew: true });
   }
 }
 
@@ -767,52 +849,86 @@ $("rename-form").addEventListener("submit", async (e) => {
     $("rename-error").textContent = `"${name}" already exists.`;
     return;
   }
-  const btn = $("rename-ok");
-  btn.disabled = true;
+  // optimistic: the list changes now, GitHub catches up in the background
+  const newPath = `${vault.folder}/${name}`;
+  const m = meta[f.path];
+  if (m) rememberMeta(newPath, f.sha, { date: m.date, device: m.device, via: m.via });
+  state.renamePath(f.path, newPath).catch(() => {});
+  files = files.map((x) => (x.path === f.path ? { ...x, name, path: newPath } : x));
+  local.set(LIST_KEY, JSON.stringify(files));
+  meta = cachedMeta();
+  renderFiles();
+  closeModal("rename");
+  toast(`Renamed to ${name}`);
+  pendingOps++;
   try {
-    const saved = await vault.rename(f.path, f.sha, name, DEVICE);
-    if (meta[f.path]) rememberMeta(saved.path, saved.sha, { date: meta[f.path].date, device: meta[f.path].device, via: meta[f.path].via });
-    state.renamePath(f.path, saved.path).catch(() => {});
-    files = files.map((x) => (x.path === f.path ? { ...x, name: saved.name, path: saved.path } : x));
+    await vault.rename(f.path, f.sha, name, DEVICE);
+  } catch (err) {
+    files = files.map((x) => (x.path === newPath ? { ...x, name: f.name, path: f.path } : x));
+    state.renamePath(newPath, f.path).catch(() => {});
     meta = cachedMeta();
     renderFiles();
-    closeModal("rename");
-    toast(`Renamed to ${saved.name}`);
-  } catch (err) {
-    $("rename-error").textContent = friendlyError(err);
+    toast(`Couldn't rename ${f.name}: ${friendlyError(err)}`, true);
   } finally {
-    btn.disabled = false;
+    pendingOps--;
   }
 });
 
-// ----- Delete: moves the file to the Trash (30 days), with Undo -----
+// ----- Delete: moves files to the Trash (30 days), with Undo -----
+// Optimistic: rows leave at once; one commit moves them all in the background.
 function askDelete(f) {
-  confirmAction(`Move "${f.name}" to the Trash? You can restore it for ${TRASH_DAYS} days.`, "Delete", async () => {
-    const wasFav = state.isFavorite(f.path);
-    const m = meta[f.path];
-    const trashPath = `${TRASH_FOLDER}/${trashName(f.name)}`;
-    try {
-      await vault.moveToTrash(f.path, f.sha, trashPath, DEVICE);
-      files = files.filter((x) => x.path !== f.path);
-      state.forgetPath(f.path).catch(() => {});
-      renderFiles();
-      toast(`Moved ${f.name} to Trash`, false, { label: "Undo", run: () => undoDelete(f, trashPath, wasFav, m) });
-    } catch (err) {
-      handleError(err);
-      loadFiles({ quiet: true });
-    }
-  });
+  confirmAction(`Move "${f.name}" to the Trash? You can restore it for ${TRASH_DAYS} days.`, "Delete", () => trashFiles([f]));
 }
 
-// Undo = restore from the trash straight away, favourite and origin included
-async function undoDelete(f, trashPath, wasFav, m) {
+async function trashFiles(fs) {
+  fs = fs.filter(Boolean);
+  if (!fs.length) return;
+  const items = fs.map((f) => ({ f, wasFav: state.isFavorite(f.path), m: meta[f.path], trashPath: `${TRASH_FOLDER}/${trashName(f.name)}` }));
+  const gone = new Set(fs.map((f) => f.path));
+  files = files.filter((x) => !gone.has(x.path));
+  local.set(LIST_KEY, JSON.stringify(files));
+  const favPaths = items.filter((i) => i.wasFav).map((i) => i.f.path);
+  if (favPaths.length) state.setFavorite(favPaths, false).catch(() => {});
+  renderFiles();
+  pendingOps++;
+  const done = vault.moveManyToTrash(items.map((i) => ({ path: i.f.path, sha: i.f.sha, trashPath: i.trashPath })), DEVICE);
+  toast(fs.length === 1 ? `Moved ${fs[0].name} to Trash` : `Moved ${fs.length} files to Trash`, false, { label: "Undo", run: () => undoTrash(items, done) });
   try {
-    const saved = await restoreFile(trashPath, f.sha, f.name, m);
-    if (wasFav) state.toggleFavorite(saved.path).catch(() => {});
-    toast(`Restored ${saved.name}`);
-    await loadFiles({ quiet: true });
+    await done;
+  } catch (err) {
+    files = [...files, ...fs];
+    if (favPaths.length) state.setFavorite(favPaths, true).catch(() => {});
+    renderFiles();
+    toast(`Couldn't move to Trash: ${friendlyError(err)}`, true);
+  } finally {
+    pendingOps--;
+  }
+}
+
+// Undo = everything back from the trash in one commit, favourites and origin included
+async function undoTrash(items, done) {
+  try { await done; } catch { return; } // it never left
+  const taken = new Set(files.map((x) => x.name));
+  const back = items.map((i) => {
+    const name = freeName(i.f.name, taken);
+    taken.add(name);
+    return { ...i, name, path: `${vault.folder}/${name}` };
+  });
+  files = [...files, ...back.map((b) => ({ name: b.name, path: b.path, sha: b.f.sha, size: b.f.size }))];
+  for (const b of back) if (b.m) rememberMeta(b.path, b.f.sha, b.m);
+  const favs = back.filter((b) => b.wasFav).map((b) => b.path);
+  if (favs.length) state.setFavorite(favs, true).catch(() => {});
+  meta = cachedMeta();
+  renderFiles();
+  toast(back.length === 1 ? `Restored ${back[0].name}` : `Restored ${back.length} files`);
+  pendingOps++;
+  try {
+    await vault.restoreMany(back.map((b) => ({ trashPath: b.trashPath, sha: b.f.sha, name: b.name })), DEVICE);
   } catch (err) {
     handleError(err);
+  } finally {
+    pendingOps--;
+    loadFiles({ quiet: true });
   }
 }
 
@@ -1193,6 +1309,196 @@ $("clip-clear").addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7b. Select mode, swipe, long-press, pull to refresh
+// ---------------------------------------------------------------------------
+const sel = { on: false, paths: new Set(), anchor: null };
+let shownPaths = [];       // paths in the order they're on screen (for Shift ranges, Select all)
+
+function setSelecting(on) {
+  sel.on = on;
+  if (!on) { sel.paths.clear(); sel.anchor = null; }
+  document.body.classList.toggle("selecting", on);
+  $("select-btn").setAttribute("aria-pressed", String(on));
+  renderFiles();
+}
+
+function toggleSel(path, range = false) {
+  if (range && sel.anchor && shownPaths.includes(sel.anchor)) {
+    const [a, b] = [shownPaths.indexOf(sel.anchor), shownPaths.indexOf(path)].sort((x, y) => x - y);
+    shownPaths.slice(a, b + 1).forEach((p) => sel.paths.add(p));
+  } else {
+    sel.paths.has(path) ? sel.paths.delete(path) : sel.paths.add(path);
+    sel.anchor = path;
+  }
+  // update rows in place (no re-render: keeps it instant and keeps focus)
+  document.querySelectorAll("#file-list .file").forEach((li) => {
+    const on = sel.paths.has(li.dataset.path);
+    li.classList.toggle("selected", on);
+    li.querySelector(".check")?.setAttribute("aria-checked", String(on));
+  });
+  syncSelBar();
+}
+
+const selected = () => files.filter((f) => sel.paths.has(f.path)).map(decorate);
+
+function syncSelBar() {
+  const bar = $("selbar");
+  bar.hidden = !sel.on;
+  if (!sel.on) return;
+  const list = selected();
+  const n = list.length;
+  $("sel-count").textContent = n ? `${n} selected` : "Select files";
+  const allShown = shownPaths.length > 0 && shownPaths.every((p) => sel.paths.has(p));
+  $("sel-all").textContent = allShown ? "None" : "All";
+  for (const id of ["sel-download", "sel-fav", "sel-share", "sel-trash"]) $(id).disabled = n === 0;
+  const allFav = n > 0 && list.every((f) => f.fav);
+  $("sel-fav").setAttribute("aria-pressed", String(allFav));
+  $("sel-fav").setAttribute("aria-label", allFav ? "Remove selected from favourites" : "Favourite selected");
+  $("sel-share").hidden = !canShareFiles();
+}
+
+$("select-btn").addEventListener("click", () => setSelecting(!sel.on));
+$("sel-done").addEventListener("click", () => setSelecting(false));
+$("sel-all").addEventListener("click", () => {
+  const allShown = shownPaths.every((p) => sel.paths.has(p));
+  shownPaths.forEach((p) => (allShown ? sel.paths.delete(p) : sel.paths.add(p)));
+  renderFiles();
+});
+$("sel-download").addEventListener("click", async () => {
+  const list = selected();
+  if (list.length === 1) return download(list[0]);
+  try {
+    await zipFiles(list, `a-really-helpful-tool-${list.length}-files-${new Date().toISOString().slice(0, 10)}.zip`, "Preparing download", "Download ready");
+  } catch (err) {
+    handleError(err);
+  }
+});
+$("sel-fav").addEventListener("click", () => {
+  const list = selected();
+  const on = !list.every((f) => f.fav);
+  state.setFavorite(list.map((f) => f.path), on).catch(handleError);
+  renderFiles();
+  toast(on ? `Added ${list.length} to favourites` : `Removed ${list.length} from favourites`);
+});
+$("sel-share").addEventListener("click", async () => {
+  try {
+    const list = selected();
+    const fileObjs = await Promise.all(list.map(async (f) => new File([await getBlob(vault, f)], f.name, { type: kindOf(f.name).mime })));
+    await navigator.share({ files: fileObjs });
+  } catch (err) {
+    if (err.name !== "AbortError") handleError(err);
+  }
+});
+$("sel-trash").addEventListener("click", () => {
+  const list = selected();
+  const n = list.length;
+  confirmAction(`Move ${n === 1 ? `"${list[0].name}"` : `${n} files`} to the Trash? You can restore ${n === 1 ? "it" : "them"} for ${TRASH_DAYS} days.`, "Delete", () => {
+    setSelecting(false);
+    trashFiles(list);
+  });
+});
+
+// Touch gestures on a row: long-press selects, swipe left = Trash, swipe right = favourite
+function addGestures(li, f) {
+  let x0 = 0, y0 = 0, dx = 0, mode = null, timer = 0, id = null;
+  const noClick = () => { li.dataset.noclick = "1"; setTimeout(() => delete li.dataset.noclick, 450); };
+  li.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch" || id !== null) return;
+    id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null;
+    timer = setTimeout(() => {
+      mode = "press";
+      navigator.vibrate?.(12);
+      noClick();
+      if (!sel.on) setSelecting(true);
+      toggleSel(f.path);
+    }, 450);
+  });
+  li.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== id || mode === "press" || mode === "scroll") return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!mode) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      clearTimeout(timer);
+      if (sel.on || Math.abs(my) >= Math.abs(mx)) { mode = "scroll"; return; }
+      mode = "swipe";
+      try { li.setPointerCapture(id); } catch { /* synthetic or finished pointer */ }
+      li.classList.add("swiping");
+    }
+    dx = mx;
+    const w = li.offsetWidth;
+    const arm = Math.min(110, w * 0.3);
+    // follows the finger, then gets heavier past the threshold
+    const shown = Math.abs(dx) <= arm ? dx : Math.sign(dx) * (arm + (Math.abs(dx) - arm) * 0.35);
+    li.style.setProperty("--dx", `${shown}px`);
+    li.classList.toggle("swipe-left", dx < 0);
+    li.classList.toggle("swipe-right", dx > 0);
+    const armed = Math.abs(dx) > arm;
+    if (armed !== li.classList.contains("armed")) {
+      li.classList.toggle("armed", armed);
+      if (armed) navigator.vibrate?.(8);
+    }
+  });
+  const end = (e) => {
+    if (e.pointerId !== id) return;
+    clearTimeout(timer);
+    id = null;
+    if (mode !== "swipe") { mode = null; return; }
+    mode = null;
+    noClick();
+    const armed = li.classList.contains("armed");
+    li.classList.remove("swiping");
+    if (armed && dx < 0) {
+      li.style.setProperty("--dx", `${-li.offsetWidth}px`);
+      li.classList.add("leaving");
+      setTimeout(() => trashFiles([current(f.path)]), 200);
+      return;
+    }
+    li.style.setProperty("--dx", "0px");
+    setTimeout(() => li.classList.remove("armed", "swipe-left", "swipe-right"), 260);
+    if (armed && dx > 0) setTimeout(() => { const c = current(f.path); if (c) toggleFavorite(c); }, 200);
+  };
+  li.addEventListener("pointerup", end);
+  li.addEventListener("pointercancel", end);
+  li.addEventListener("contextmenu", (e) => { if (e.pointerType === "touch" || sel.on || li.dataset.noclick) e.preventDefault(); });
+}
+
+// Pull to refresh (phones): pull down at the top of Documents
+let ptr = null;
+document.addEventListener("touchstart", (e) => {
+  if (!vault || currentView !== "docs" || $("app").hidden || scrollY > 0 || sel.on || e.touches.length !== 1 || document.querySelector(".modal:not([hidden])")) return;
+  ptr = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, pull: 0 };
+}, { passive: true });
+document.addEventListener("touchmove", (e) => {
+  if (!ptr) return;
+  const dy = e.touches[0].clientY - ptr.y0;
+  const dxAbs = Math.abs(e.touches[0].clientX - ptr.x0);
+  if (scrollY > 0 || (ptr.pull === 0 && (dy <= 0 || dxAbs > dy))) { ptr = null; resetPtr(); return; }
+  ptr.pull = Math.max(0, Math.min(96, dy * 0.5));
+  const ind = $("ptr");
+  ind.classList.add("pulling");
+  ind.classList.toggle("ready", ptr.pull >= 64);
+  ind.style.setProperty("--pull", `${ptr.pull}px`);
+  ind.style.setProperty("--turn", `${dy * 1.6}deg`);
+}, { passive: true });
+document.addEventListener("touchend", async () => {
+  if (!ptr) return;
+  const ready = ptr.pull >= 64;
+  ptr = null;
+  if (!ready) return resetPtr();
+  const ind = $("ptr");
+  ind.classList.add("refreshing");
+  ind.style.setProperty("--pull", "64px");
+  navigator.vibrate?.(10);
+  await loadFiles({ quiet: true });
+  resetPtr();
+});
+function resetPtr() {
+  const ind = $("ptr");
+  ind.classList.remove("pulling", "ready", "refreshing");
+  ind.style.setProperty("--pull", "0px");
+}
+
+// ---------------------------------------------------------------------------
 // 8. Trash and What's new
 //    Trash lives in .trash/<stamp>__<name> in the vault (see trash.js). Files
 //    older than 30 days are removed for good when the Trash is opened, and
@@ -1303,21 +1609,27 @@ async function backup() {
   const btn = $("backup-btn");
   btn.disabled = true;
   try {
+    await zipFiles(files, `a-really-helpful-tool-backup-${new Date().toISOString().slice(0, 10)}.zip`, "Preparing backup", "Backup ready");
+  } catch (err) {
+    handleError(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Download several documents as one zip. */
+async function zipFiles(list, fileName, busy, ready) {
+  {
     const entries = [];
-    for (const [i, f] of files.entries()) {
-      toast(`Preparing backup: ${i + 1} of ${files.length}`);
+    for (const [i, f] of list.entries()) {
+      toast(`${busy}: ${i + 1} of ${list.length}`);
       const blob = await getBlob(vault, f);
       const date = meta[f.path]?.date ? new Date(meta[f.path].date) : new Date();
       entries.push({ name: f.name, data: new Uint8Array(await blob.arrayBuffer()), date });
     }
     const zip = new Blob(makeZip(entries), { type: "application/zip" });
-    const day = new Date().toISOString().slice(0, 10);
-    saveBlob(zip, `a-really-helpful-tool-backup-${day}.zip`);
-    toast(`Backup ready: ${files.length} document${files.length === 1 ? "" : "s"}, ${formatSize(zip.size)}`);
-  } catch (err) {
-    handleError(err);
-  } finally {
-    btn.disabled = false;
+    saveBlob(zip, fileName);
+    toast(`${ready}: ${list.length} document${list.length === 1 ? "" : "s"}, ${formatSize(zip.size)}`);
   }
 }
 $("backup-btn").addEventListener("click", backup);
@@ -1401,6 +1713,15 @@ document.querySelectorAll(".modal").forEach((m) => {
   });
 });
 document.addEventListener("keydown", (e) => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
+  const modalOpen = !!document.querySelector(".modal:not([hidden])");
+  if (e.key === "Escape" && sel.on && !modalOpen) return setSelecting(false);
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && vault && currentView === "docs" && !typing && !modalOpen) {
+    e.preventDefault();
+    if (!sel.on) setSelecting(true);
+    shownPaths.forEach((p) => sel.paths.add(p));
+    return renderFiles();
+  }
   if (e.key === "Escape") {
     closeMenu();
     document.querySelectorAll(".modal:not([hidden])").forEach((m) => closeModal(m.id));

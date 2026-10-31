@@ -10,6 +10,13 @@
 
 const API = "https://api.github.com";
 
+function tidyListing(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter((i) => i.type === "file" && i.name !== ".gitkeep")
+    .map(({ name, path, sha, size }) => ({ name, path, sha, size }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
 export class GitHubError extends Error {
   constructor(status, message) {
     super(message);
@@ -40,7 +47,7 @@ export class Vault {
     return `${this.repoUrl}/contents/${encPath(path)}`;
   }
 
-  async request(url, { method = "GET", body, accept = "application/vnd.github+json" } = {}) {
+  async request(url, { method = "GET", body, accept = "application/vnd.github+json", etag } = {}) {
     const res = await fetch(url, {
       method,
       headers: {
@@ -48,10 +55,12 @@ export class Vault {
         Accept: accept,
         "X-GitHub-Api-Version": "2022-11-28",
         ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(etag ? { "If-None-Match": etag } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
     });
+    if (res.status === 304) return res; // unchanged (conditional request: free, no rate limit used)
     if (!res.ok) {
       let msg = res.statusText;
       try { msg = (await res.json()).message || msg; } catch { /* not json */ }
@@ -117,15 +126,30 @@ export class Vault {
     return this.listFolder(this.folder);
   }
 
+  /**
+   * Has the document list changed since the last call? Uses the listing's
+   * ETag, so a "no" answer costs nothing against the API rate limit.
+   * Returns the new list, or null when nothing changed.
+   */
+  async listIfChanged() {
+    let res;
+    try {
+      res = await this.request(this.url(this.folder), { etag: this.listEtag });
+    } catch (e) {
+      if (e.status === 404) return this.listEtag === "none" ? null : ((this.listEtag = "none"), []);
+      throw e;
+    }
+    if (res.status === 304) return null;
+    this.listEtag = res.headers.get("ETag") || null;
+    return tidyListing(await res.json());
+  }
+
   /** Files directly in one folder of the vault, sorted by name. Missing folder = []. */
   async listFolder(folder) {
     try {
       const res = await this.request(this.url(folder));
-      const items = await res.json();
-      return items
-        .filter((i) => i.type === "file" && i.name !== ".gitkeep")
-        .map(({ name, path, sha, size }) => ({ name, path, sha, size }))
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      if (folder === this.folder) this.listEtag = res.headers.get("ETag") || null;
+      return tidyListing(await res.json());
     } catch (e) {
       if (e.status === 404) return []; // folder not created yet = no files
       throw e;
@@ -227,6 +251,30 @@ export class Vault {
       `Restore ${name}${tag ? ` [${tag}]` : ""}`
     );
     return { name, path, sha };
+  }
+
+  /** Move several documents to the trash in one commit. items: [{path, sha, trashPath}] */
+  async moveManyToTrash(items, tag = "") {
+    const n = items.length;
+    await this.commitTree(
+      items.flatMap(({ path, sha, trashPath }) => [
+        { path: trashPath, mode: "100644", type: "blob", sha },
+        { path, mode: "100644", type: "blob", sha: null },
+      ]),
+      n === 1 ? `Delete ${items[0].path.split("/").pop()}${tag ? ` [${tag}]` : ""}` : `Delete ${n} files${tag ? ` [${tag}]` : ""}\n\n${items.map((i) => `Delete ${i.path.split("/").pop()}`).join("\n")}`
+    );
+  }
+
+  /** Bring several files back from the trash in one commit. items: [{trashPath, sha, name}] */
+  async restoreMany(items, tag = "") {
+    await this.commitTree(
+      items.flatMap(({ trashPath, sha, name }) => [
+        { path: `${this.folder}/${name}`, mode: "100644", type: "blob", sha },
+        { path: trashPath, mode: "100644", type: "blob", sha: null },
+      ]),
+      items.length === 1 ? `Restore ${items[0].name}${tag ? ` [${tag}]` : ""}` : `Restore ${items.length} files${tag ? ` [${tag}]` : ""}`
+    );
+    return items.map(({ name, sha }) => ({ name, path: `${this.folder}/${name}`, sha }));
   }
 
   /** Remove trash entries for good, all in one commit. */
