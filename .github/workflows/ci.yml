@@ -7,7 +7,7 @@ name: Test and deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, preview]
   pull_request:
   workflow_dispatch:
 
@@ -63,6 +63,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build site folder (app files only, cache-busted)
         run: ./scripts/build-site.sh _site "${GITHUB_SHA::8}"
+      # A "preview" branch, if there is one, goes live at /preview/ next to the
+      # real app, so a release can be tried on real devices before it ships.
+      - name: Add the preview build at /preview/
+        run: |
+          if git ls-remote --exit-code --heads origin preview > /dev/null; then
+            git fetch --depth 1 origin preview
+            git worktree add /tmp/preview FETCH_HEAD
+            (cd /tmp/preview && ./scripts/build-site.sh "$GITHUB_WORKSPACE/_site/preview" "pre-$(git rev-parse --short=8 HEAD)")
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
