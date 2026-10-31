@@ -386,6 +386,7 @@ for (const [label, opts, device] of [
   assert((await p.title()) === "a really helpful tool", `${label}: app is called "a really helpful tool"`);
   await p.screenshot({ path: SHOTS + `${label}-1-lock.png` });
   assert((await p.textContent("#lock .version")) === `v${VERSION}` && (await p.getAttribute('#lock a[href="about.html"]', "href")), `${label}: lock screen shows v${VERSION} and an About link`);
+  assert(await p.isVisible('#lock a[href="make-your-own.html"]'), `${label}: lock screen links to the Make your own guide`);
 
   await p.fill("#lock-input", "wrong password");
   await p.click("#lock-btn");
