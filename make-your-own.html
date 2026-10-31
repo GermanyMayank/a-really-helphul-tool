@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Same strict CSP as the front page. This page talks to nothing at all. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#a3201b" />
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Make your own copy of a really helpful tool: a private document vault on GitHub, free, in about 15 minutes, without writing code." />
+  <title>Make your own · a really helpful tool</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/icon-180.png" />
+  <link rel="preload" href="assets/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/about.css" />
+</head>
+<body class="about guide">
+  <div class="bandhani bandhani-top" aria-hidden="true"></div>
+
+  <header class="a-nav">
+    <a class="a-brand" href="about.html"><img src="assets/icon.svg" alt="" width="34" height="34" /><span>a really helpful tool</span></a>
+    <nav class="a-links" aria-label="Main">
+      <a href="about.html">About</a>
+      <a class="a-btn a-btn-red" href="./">Unlock</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- ============================================================ intro -->
+    <section class="a-wrap g-hero">
+      <p class="a-pill"><span class="haldi-dot" aria-hidden="true"></span>Make your own copy</p>
+      <h1>Your own private vault, <em>in about 15 minutes.</em></h1>
+      <p class="a-lead">This guide takes you from nothing to your own working copy of the app, click by click. You don't need to write code or install anything. Your copy is completely separate: nobody else can see your documents, and you can't see theirs.</p>
+      <ul class="g-facts">
+        <li><b>Free</b><span>GitHub's free plan is enough</span></li>
+        <li><b>~15 min</b><span>most of it is waiting</span></li>
+        <li><b>No code</b><span>only clicking and pasting</span></li>
+        <li><b>Browser only</b><span>a laptop is easiest</span></li>
+      </ul>
+    </section>
+
+    <!-- ============================================================ what you build -->
+    <section class="a-band-soft g-band">
+      <div class="a-wrap">
+        <h2>What you are building</h2>
+        <p class="g-sub">Three things, all on your own GitHub account. Once you see how they fit together, every step below makes sense.</p>
+        <div class="a-cards">
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+            <h3>1. The app (public)</h3>
+            <p>Your copy ("fork") of this project's code. GitHub Pages turns it into a website at your own address. It holds code only, never documents, so it can be public. Free GitHub Pages needs it public.</p>
+          </article>
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <h3>2. The vault (private)</h3>
+            <p>A separate <b>private</b> repository where your files are stored. Only you can open it. Every upload, rename and delete becomes a saved change there, so nothing is ever really lost.</p>
+          </article>
+          <article class="a-card">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/></svg>
+            <h3>3. The key (encrypted)</h3>
+            <p>A GitHub access token that can open the vault and nothing else. It is locked with your password (AES-256) and stored in the app as <code>config.js</code>. Without your password it is useless.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ personalise -->
+    <section class="a-wrap g-section" id="you">
+      <div class="g-you">
+        <div class="g-you-text">
+          <h2>Fill these in first</h2>
+          <p>Every link and address on this page changes to yours as you type, so you can just click through. Nothing you type here is saved or sent anywhere.</p>
+        </div>
+        <div class="g-fields">
+          <label for="g-user">Your GitHub username</label>
+          <input class="input" id="g-user" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="for example priya-shah" />
+          <p class="g-hint">Don't have one yet? Step 0 below.</p>
+          <label for="g-repo">Name of your copy</label>
+          <input class="input" id="g-repo" autocomplete="off" autocapitalize="off" spellcheck="false" value="a-really-helphul-tool" />
+          <p class="g-hint">Keep the default unless you rename it in step 1. It becomes part of your app's address.</p>
+          <label for="g-vault">Name of your private vault</label>
+          <input class="input" id="g-vault" autocomplete="off" autocapitalize="off" spellcheck="false" value="docsync-vault" />
+        </div>
+      </div>
+      <div class="g-addr">
+        <p>Your app will live at</p>
+        <code class="g-url" data-f="site">https://YOUR-USERNAME.github.io/a-really-helphul-tool/</code>
+      </div>
+    </section>
+
+    <!-- ============================================================ jump list -->
+    <nav class="a-wrap g-toc" aria-label="On this page">
+      <p class="a-kicker">On this page</p>
+      <ol>
+        <li><a href="#before">Before you start</a></li>
+        <li><a href="#part-a">Part A: copy the app (steps 1 to 4)</a></li>
+        <li><a href="#part-b">Part B: make the vault and the key (steps 5 and 6)</a></li>
+        <li><a href="#part-c">Part C: connect them (steps 7 to 10)</a></li>
+        <li><a href="#update">Getting new versions</a></li>
+        <li><a href="#everyday">Everyday questions</a></li>
+        <li><a href="#trouble">If something goes wrong</a></li>
+        <li><a href="#public">What is public, what is private</a></li>
+      </ol>
+    </nav>
+
+    <!-- ============================================================ before -->
+    <section class="a-wrap g-section" id="before">
+      <h2>Before you start</h2>
+      <ul class="g-check">
+        <li><b>A GitHub account.</b> Free. If you have none, do step 0.</li>
+        <li><b>A laptop or desktop browser</b> (Chrome, Edge, Safari or Firefox). A phone works too, but GitHub's settings pages are fiddly on a small screen.</li>
+        <li><b>A password idea.</b> At least 10 characters. A short sentence is easiest to type on a phone and hardest to guess, for example <i>green bus to Dwarka at 7</i>. Don't reuse a password from somewhere else.</li>
+        <li><b>15 minutes</b> and a phone to try it on at the end.</li>
+      </ul>
+
+      <div class="g-step" id="step-0">
+        <div class="g-step-head"><span class="g-n">0</span><div><h3>Create a GitHub account (skip if you have one)</h3><p class="g-time">3 minutes</p></div></div>
+        <ol>
+          <li>Open <a href="https://github.com/signup" target="_blank" rel="noopener">github.com/signup</a>.</li>
+          <li>Enter your email, a password and a <b>username</b>. Pick the username with care: it becomes part of your app's address (<code>username.github.io</code>).</li>
+          <li>Solve the puzzle, then type the code GitHub emails you.</li>
+          <li>If GitHub asks which plan you want, choose <b>Free</b>. Skip any survey.</li>
+          <li>Recommended: turn on two-factor login under <b>Settings › Password and authentication</b>. Your account guards your documents, so it deserves a strong lock.</li>
+        </ol>
+        <p class="g-ok"><b>You should now:</b> be signed in to GitHub and see your username in the top-right menu. Type it into the box above.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ part A -->
+    <section class="a-band-soft g-band" id="part-a">
+      <div class="a-wrap">
+        <p class="a-kicker g-kicker">Part A</p>
+        <h2>Copy the app</h2>
+        <p class="g-sub">You make your own copy of the code and turn it into a website. At the end of Part A you have a working address, but it can't open anything yet.</p>
+
+        <div class="g-step" id="step-1">
+          <div class="g-step-head"><span class="g-n">1</span><div><h3>Fork the project</h3><p class="g-time">1 minute</p></div></div>
+          <p>"Fork" is GitHub's word for "make my own copy of this repository".</p>
+          <ol>
+            <li>Make sure you are signed in to GitHub, then open the fork page: <a class="g-go" href="https://github.com/GermanyMayank/a-really-helphul-tool/fork" target="_blank" rel="noopener">Fork the project</a></li>
+            <li><b>Owner:</b> your username.</li>
+            <li><b>Repository name:</b> keep <code>a-really-helphul-tool</code> (yes, "helphul" is how the original is spelled) or choose your own, for example <code>my-documents</code>. Only letters, numbers and dashes. If you change it, update "Name of your copy" at the top.</li>
+            <li>Leave <b>Copy the main branch only</b> ticked.</li>
+            <li>Click <b>Create fork</b>.</li>
+          </ol>
+          <p class="g-ok"><b>You should now see:</b> a page titled <code><span data-f="user">YOUR-USERNAME</span>/<span data-f="repo">a-really-helphul-tool</span></code> with a small line under it saying "forked from GermanyMayank/a-really-helphul-tool".</p>
+          <p class="g-note"><b>Is it a problem that the copy is public?</b> No. It contains only code and, after step 8, your <i>encrypted</i> key. Your documents go into the private vault in step 5.</p>
+        </div>
+
+        <div class="g-step" id="step-2">
+          <div class="g-step-head"><span class="g-n">2</span><div><h3>Allow the automatic checks to run</h3><p class="g-time">30 seconds</p></div></div>
+          <p>The project tests itself and publishes the website automatically ("GitHub Actions"). On a fresh fork GitHub switches this off until you say yes.</p>
+          <ol>
+            <li>Open the <b>Actions</b> tab of your copy: <a class="g-go" data-link="https://github.com/{user}/{repo}/actions" href="#you" target="_blank" rel="noopener">Open Actions</a></li>
+            <li>Click the green button <b>I understand my workflows, go ahead and enable them</b>.</li>
+          </ol>
+          <p class="g-ok"><b>You should now see:</b> "All workflows" on the left with <b>Test and deploy</b> listed under it. No runs yet is normal.</p>
+        </div>
+
+        <div class="g-step" id="step-3">
+          <div class="g-step-head"><span class="g-n">3</span><div><h3>Turn on the website (GitHub Pages)</h3><p class="g-time">30 seconds</p></div></div>
+          <ol>
+            <li>Open <b>Settings › Pages</b> of your copy: <a class="g-go" data-link="https://github.com/{user}/{repo}/settings/pages" href="#you" target="_blank" rel="noopener">Open Pages settings</a></li>
+            <li>Under <b>Build and deployment › Source</b>, choose <b>GitHub Actions</b>.</li>
+            <li>That's all. There is no Save button; the choice is stored at once.</li>
+          </ol>
+          <p class="g-warn"><b>Not "Deploy from a branch".</b> That option would publish the code without testing it and skip the step that prepares the app. Always pick <b>GitHub Actions</b>.</p>
+        </div>
+
+        <div class="g-step" id="step-4">
+          <div class="g-step-head"><span class="g-n">4</span><div><h3>Publish it for the first time</h3><p class="g-time">1 click, then 3 to 5 minutes of waiting</p></div></div>
+          <ol>
+            <li>Open the workflow: <a class="g-go" data-link="https://github.com/{user}/{repo}/actions/workflows/ci.yml" href="#you" target="_blank" rel="noopener">Open "Test and deploy"</a></li>
+            <li>On the right, click <b>Run workflow</b>, keep <b>Branch: main</b>, and click the green <b>Run workflow</b> button.</li>
+            <li>Reload the page after a few seconds. A run appears with a yellow dot. It runs about 280 browser checks first, then publishes. Wait until the dot turns into a <b>green tick</b> (3 to 5 minutes). You can do steps 5 and 6 meanwhile.</li>
+            <li>Open your new address: <a class="g-go" data-link="{site}" href="#you" target="_blank" rel="noopener">Open my app</a></li>
+          </ol>
+          <p class="g-ok"><b>You should now see:</b> the app's red lock screen asking for a password. <b>Don't try to unlock yet:</b> your copy still carries the original owner's key, which only opens their vault. Step 8 replaces it with yours.</p>
+          <p class="g-note"><b>Red cross instead of a green tick?</b> See <a href="#t-deploy">If something goes wrong</a>. The most common cause is step 3 not being saved, and the fix takes 20 seconds.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ part B -->
+    <section class="a-wrap g-section" id="part-b">
+      <p class="a-kicker g-kicker">Part B</p>
+      <h2>Make the vault and the key</h2>
+      <p class="g-sub">Now the place where your files will live, and a key that can open only that place.</p>
+
+      <div class="g-step" id="step-5">
+        <div class="g-step-head"><span class="g-n">5</span><div><h3>Create the private vault</h3><p class="g-time">1 minute</p></div></div>
+        <ol>
+          <li>Open <a class="g-go" href="https://github.com/new" target="_blank" rel="noopener">Create a new repository</a></li>
+          <li><b>Owner:</b> your username.</li>
+          <li><b>Repository name:</b> <span class="g-copyline"><code data-f="vault">docsync-vault</code><button class="g-copy" type="button">Copy</button></span></li>
+          <li><b>Visibility: Private.</b> This is the one setting that really matters. Double-check it.</li>
+          <li>Turn on <b>Add a README file</b> (sometimes shown as "Add README"). The app needs a repository that isn't completely empty.</li>
+          <li>Leave .gitignore and license as they are, and click <b>Create repository</b>.</li>
+        </ol>
+        <p class="g-ok"><b>You should now see:</b> a page titled <code><span data-f="user">YOUR-USERNAME</span>/<span data-f="vault">docsync-vault</span></code> with a <b>Private</b> label next to the name and one file, README.md.</p>
+        <p class="g-warn"><b>Never make the vault public.</b> The setup page in step 7 refuses a public vault, but it's good to know why: anyone could read a public repository.</p>
+      </div>
+
+      <div class="g-step" id="step-6">
+        <div class="g-step-head"><span class="g-n">6</span><div><h3>Create the access key (token)</h3><p class="g-time">2 minutes</p></div></div>
+        <p>A "fine-grained personal access token" is a key you can limit to one repository and one kind of access. The app uses it to read and save files in the vault.</p>
+        <ol>
+          <li>Open <a class="g-go" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained token</a><br /><span class="g-small">(The long way: your picture › Settings › Developer settings › Personal access tokens › Fine-grained tokens › Generate new token.)</span></li>
+          <li><b>Token name:</b> <span class="g-copyline"><code>helpful-tool-vault</code><button class="g-copy" type="button">Copy</button></span> (any name; it's only a label for you).</li>
+          <li><b>Resource owner:</b> your username.</li>
+          <li><b>Expiration:</b> the longest you are comfortable with, for example one year. When it runs out the app stops unlocking, and you repeat steps 6 to 8 (5 minutes). GitHub emails you a week before.</li>
+          <li><b>Repository access:</b> choose <b>Only select repositories</b>, then pick <b data-f="vault">docsync-vault</b>. Only that one. Not your app copy, not "All repositories".</li>
+          <li><b>Permissions:</b> under <b>Repository permissions</b> (newer GitHub screens: click <b>Add permissions</b> first), find <b>Contents</b> and set it to <b>Read and write</b>. GitHub adds "Metadata: Read-only" by itself; that's correct. Leave everything else at <b>No access</b>.</li>
+          <li>Click <b>Generate token</b> at the bottom, check the summary, and confirm.</li>
+          <li>Click the copy icon next to the token. It starts with <code>github_pat_</code>.</li>
+        </ol>
+        <p class="g-warn"><b>Treat the token like a house key until step 7.</b> GitHub shows it only once. Don't paste it into <code>config.js</code>, an email, a chat or a note you sync. If you lose it before step 7, just delete it on the tokens page and make a new one.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ part C -->
+    <section class="a-band-soft g-band" id="part-c">
+      <div class="a-wrap">
+        <p class="a-kicker g-kicker">Part C</p>
+        <h2>Connect the app to your vault</h2>
+        <p class="g-sub">Lock the key with your password, put the locked key into your app, and you're done.</p>
+
+        <div class="g-step" id="step-7">
+          <div class="g-step-head"><span class="g-n">7</span><div><h3>Lock the key with your password</h3><p class="g-time">1 minute (step 4 must have a green tick)</p></div></div>
+          <ol>
+            <li>Open the setup page of <b>your</b> copy: <a class="g-go" data-link="{site}setup.html" href="#you" target="_blank" rel="noopener">Open my setup page</a><br /><span class="g-small">Address: <code data-f="setup">https://YOUR-USERNAME.github.io/a-really-helphul-tool/setup.html</code></span></li>
+            <li><b>GitHub username:</b> already filled in. Check it.</li>
+            <li><b>Private vault repo name:</b> <code data-f="vault">docsync-vault</code></li>
+            <li><b>Fine-grained access token:</b> paste the token from step 6.</li>
+            <li><b>Choose a password</b> and <b>Repeat password</b>. At least 10 characters, not a common word or pattern. This is the password you will type on every device.</li>
+            <li>Click <b>Test token and generate config</b>. The page checks with GitHub that the key opens your vault and that the vault is private, then locks the key with your password. All of this happens inside your browser; your password is never sent anywhere.</li>
+            <li>A box called <b>Your new config.js</b> appears. Click <b>Copy</b>.</li>
+          </ol>
+          <p class="g-ok"><b>You should now have:</b> a block of text on your clipboard starting with <code>// a really helpful tool: configuration</code> and containing <code>encryptedToken</code>. It is safe to keep: it's useless without your password. Saving a copy in your notes now saves time later.</p>
+          <p class="g-warn"><b>Write the password down somewhere safe.</b> It can't be recovered or reset. If you forget it, your files are still fine in the vault: you just make a new token and do steps 6 to 8 again with a new password.</p>
+        </div>
+
+        <div class="g-step" id="step-8">
+          <div class="g-step-head"><span class="g-n">8</span><div><h3>Put the locked key into your app</h3><p class="g-time">1 minute, then 3 to 5 minutes of waiting</p></div></div>
+          <ol>
+            <li>Open <code>config.js</code> in your copy, ready to edit: <a class="g-go" data-link="https://github.com/{user}/{repo}/edit/main/config.js" href="#you" target="_blank" rel="noopener">Edit my config.js</a></li>
+            <li>Click into the text, select everything (<kbd>Ctrl</kbd>+<kbd>A</kbd>, on a Mac <kbd>⌘</kbd>+<kbd>A</kbd>) and delete it. The old text is the original owner's locked key; it has to go completely.</li>
+            <li>Paste your config (<kbd>Ctrl</kbd>+<kbd>V</kbd> or <kbd>⌘</kbd>+<kbd>V</kbd>).</li>
+            <li>Click <b>Commit changes...</b> (top right), keep <b>Commit directly to the main branch</b>, and click <b>Commit changes</b>.</li>
+            <li>This starts "Test and deploy" by itself. Wait for the green tick: <a class="g-go" data-link="https://github.com/{user}/{repo}/actions" href="#you" target="_blank" rel="noopener">Watch it in Actions</a></li>
+          </ol>
+          <p class="g-ok"><b>You should now see:</b> the file showing <code>owner: "<span data-f="userlc">your-username</span>"</code> and <code>repo: "<span data-f="vault">docsync-vault</span>"</code>, and a new green run in Actions.</p>
+          <p class="g-note"><b>config.js is the only file you ever need to edit.</b> Everything else updates by itself when you get new versions.</p>
+        </div>
+
+        <div class="g-step" id="step-9">
+          <div class="g-step-head"><span class="g-n">9</span><div><h3>Unlock and try it</h3><p class="g-time">2 minutes</p></div></div>
+          <ol>
+            <li>Open <a class="g-go" data-link="{site}" href="#you" target="_blank" rel="noopener">Open my app</a>. If it was already open, reload it (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>, on a Mac <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>) so it picks up the new config.</li>
+            <li>Type your password and press <b>Unlock</b>. The first unlock takes a second or two on purpose: that slowness is what makes guessing passwords impractical.</li>
+            <li>Upload a test file: the upload button, drag and drop on a laptop, or paste a screenshot with <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
+            <li>Check it arrived in the vault: <a class="g-go" data-link="https://github.com/{user}/{vault}/tree/main/files" href="#you" target="_blank" rel="noopener">Open my vault's files</a></li>
+            <li>Try the menu (⋯) on the file: preview, rename, delete, then restore it from the Trash.</li>
+          </ol>
+          <p class="g-ok"><b>You should now see:</b> your file in the list, in a category picked from its name, and the same file under <code>files/</code> in your private vault on GitHub. That's it: it works.</p>
+        </div>
+
+        <div class="g-step" id="step-10">
+          <div class="g-step-head"><span class="g-n">10</span><div><h3>Put it on your phones</h3><p class="g-time">1 minute per device</p></div></div>
+          <p>Open <code data-f="site">https://YOUR-USERNAME.github.io/a-really-helphul-tool/</code> on the phone, unlock once, then:</p>
+          <ul>
+            <li><b>iPhone / iPad (Safari):</b> Share button › <b>Add to Home Screen</b> › Add.</li>
+            <li><b>Android (Chrome):</b> menu ⋮ › <b>Install app</b> (or <b>Add to Home screen</b>).</li>
+            <li><b>Laptop (Chrome or Edge):</b> the install icon at the right end of the address bar, or just bookmark it.</li>
+          </ul>
+          <p>It then opens full screen like a normal app, even without a connection (you need the internet to load documents you haven't opened before). Every device needs the password once. The lock button wipes the key and every cached file from that device.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ updates -->
+    <section class="a-wrap g-section" id="update">
+      <h2>Getting new versions</h2>
+      <p>When the original project gets a new version, your copy doesn't change by itself. Pulling it in takes two clicks:</p>
+      <ol class="g-list">
+        <li>Open your copy on GitHub: <a class="g-go" data-link="https://github.com/{user}/{repo}" href="#you" target="_blank" rel="noopener">Open my copy</a></li>
+        <li>Above the file list, click <b>Sync fork</b>, then <b>Update branch</b>.</li>
+        <li>Test and deploy starts by itself. When it's green, reload the app. If nothing starts after a minute, run it by hand as in step 4.</li>
+      </ol>
+      <p class="g-note"><b>Your config.js is kept</b> when you sync, because the update doesn't touch it. In the rare case GitHub says there is a conflict and only offers <b>Discard commits</b>: that's fine if you saved your config text in step 7. Discard, then do step 8 again with your saved text. Never paste the original owner's config.js into yours.</p>
+      <p>What changed in each version: <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/CHANGELOG.md" target="_blank" rel="noopener">the changelog</a>, or <b>What's new</b> on the app's lock screen.</p>
+    </section>
+
+    <!-- ============================================================ everyday -->
+    <section class="a-band-soft g-band" id="everyday">
+      <div class="a-wrap">
+        <h2>Everyday questions</h2>
+        <div class="g-faq">
+          <details><summary>How do I change my password?</summary>
+            <p>Open your setup page (step 7) with the same token and a new password, then paste the result into config.js (step 8). If you no longer have the token, make a new one (step 6) first. Old devices will ask for the new password.</p></details>
+          <details><summary>My token expired. What now?</summary>
+            <p>The app will refuse to unlock. Make a new token (step 6), then steps 7 and 8. You can delete the old token on <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">your tokens page</a>. Your files are untouched.</p></details>
+          <details><summary>I lost my phone. Can someone get in?</summary>
+            <p>Only with your password, and only if the phone was still unlocked into the app. To cut it off completely: on <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">your tokens page</a>, delete the token. That stops every device at once. Then make a new token and do steps 7 and 8 to get back in on your other devices.</p></details>
+          <details><summary>I deleted a file by mistake.</summary>
+            <p>Tap <b>Undo</b> right away, or open <b>Trash</b> in the app: deleted files wait there for 30 days. After that, the file is still in the vault's history on GitHub: open the "Delete ..." change under <b>Commits</b> in your vault and download it from the version before.</p></details>
+          <details><summary>How big can files be, and how much fits?</summary>
+            <p>Up to 25 MB per file by default; you can raise <code>maxFileMB</code> in config.js to about 50. GitHub likes repositories to stay under roughly 1 GB in total, which is thousands of scanned documents. Compress very large PDFs before uploading.</p></details>
+          <details><summary>Can my family use my copy?</summary>
+            <p>Anyone with your password sees everything in your vault, so share it only with someone you'd hand your folder of papers to. For separate vaults, each person makes their own copy with this guide, with their own GitHub account. It takes them 15 minutes too.</p></details>
+          <details><summary>Can I change the name or colours?</summary>
+            <p>Yes. The name shown in the browser tab is in <code>index.html</code> (the <code>&lt;title&gt;</code> line) and the colours are at the top of <code>assets/style.css</code> (<code>--kumkum</code> red and <code>--haldi</code> yellow). Edit them on GitHub with the pencil icon like config.js. Keep in mind that edits to files other than config.js can collide with future updates. The code is MIT licensed: keep the LICENSE file and you're free to change anything.</p></details>
+          <details><summary>Can I rename my copy later?</summary>
+            <p>Yes, under <b>Settings › General › Repository name</b>. Your app's address changes with it, so update bookmarks and home screen icons. Nothing else needs to change.</p></details>
+          <details><summary>How do I stop using it?</summary>
+            <p>Download a backup first (the Backup button in the app gives you one zip). Then delete the token, and delete the vault and your copy under each repository's <b>Settings › General › Danger Zone</b>.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ trouble -->
+    <section class="a-wrap g-section" id="trouble">
+      <h2>If something goes wrong</h2>
+      <p>Find the message you see. Almost every problem is a setting that didn't stick.</p>
+      <div class="g-faq">
+        <details id="t-actions"><summary>The Actions tab says "Workflows aren't being run on this forked repository"</summary>
+          <p>That's step 2. Click <b>I understand my workflows, go ahead and enable them</b>, then run the workflow as in step 4.</p></details>
+        <details id="t-deploy"><summary>"Browser tests" is green but "Deploy to GitHub Pages" failed</summary>
+          <p>Usually GitHub Pages isn't set to <b>GitHub Actions</b> yet. Do step 3, then open the failed run and click <b>Re-run all jobs</b> (top right).</p>
+          <p>If the error says <i>Branch "main" is not allowed to deploy to github-pages due to environment protection rules</i>: open <b>Settings › Environments › github-pages</b>, and under <b>Deployment branches and tags</b> add a rule for <code>main</code> (or choose "No restriction"). Then re-run.</p></details>
+        <details><summary>"Browser tests" failed</summary>
+          <p>If you only changed config.js, this is almost always a hiccup on GitHub's side: click <b>Re-run all jobs</b>. If it fails again, open the run; the failing check is shown in red at the top. If you changed other files, undo that change and try again.</p></details>
+        <details><summary>My address shows "404 There isn't a GitHub Pages site here"</summary>
+          <p>Either the first deploy hasn't finished (wait for the green tick in step 4), or the address is wrong. It's <code data-f="site">https://YOUR-USERNAME.github.io/a-really-helphul-tool/</code>: your username in small letters, then the exact name of your copy, with the slash at the end.</p></details>
+        <details><summary>Setup page: "Token is not valid."</summary>
+          <p>The token was copied incompletely, has expired or was deleted. Make a new one (step 6) and paste it with the copy icon instead of selecting it by hand.</p></details>
+        <details><summary>Setup page: "Can't see …. Check the name and that the token has access to this repo."</summary>
+          <p>One of three things: the vault name has a typo (it must match exactly); the username is wrong; or the token's <b>Repository access</b> doesn't include the vault. Open the token on <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">your tokens page</a>, check "Only select repositories" lists your vault, and that Contents is "Read and write".</p></details>
+        <details><summary>Setup page: "… is public. The vault must be a private repo"</summary>
+          <p>Open the vault's <b>Settings › General</b>, scroll to the <b>Danger Zone</b>, <b>Change visibility</b> to <b>Private</b>. Then click the setup button again.</p></details>
+        <details><summary>Setup page: "Choose a stronger password"</summary>
+          <p>At least 10 characters and not a common word or pattern. The locked key is public, so a weak password could be guessed by a computer trying millions of passwords. A sentence of four or five words is ideal.</p></details>
+        <details><summary>The app says "Wrong password" although it's right</summary>
+          <p>Your app is probably still showing the original owner's config. Check that step 8 was committed and that its run in Actions is green, then reload with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>. On a phone where you added the app to the home screen, open it, wait 10 seconds, close it fully and open it again.</p></details>
+        <details><summary>It unlocks, but uploading fails</summary>
+          <p>The token can read but not write: set <b>Contents</b> to <b>Read and write</b> on the token (step 6). If the message mentions an empty repository, add a README to the vault (on the vault's page, <b>Add file › Create new file</b>, name it README.md, commit).</p></details>
+        <details><summary>"This site is not set up yet"</summary>
+          <p>config.js has no username in it. Do steps 7 and 8.</p></details>
+        <details><summary>Something else</summary>
+          <p>Search <a href="https://github.com/GermanyMayank/a-really-helphul-tool/issues" target="_blank" rel="noopener">the project's issues</a> or open a new one. Describe what you did and what you saw, and attach a screenshot, but <b>never post your token, password or config.js</b>.</p></details>
+      </div>
+    </section>
+
+    <!-- ============================================================ public / private -->
+    <section class="a-band-soft g-band" id="public">
+      <div class="a-wrap">
+        <h2>What is public, what is private</h2>
+        <div class="g-table-wrap">
+          <table class="g-table">
+            <thead><tr><th>Thing</th><th>Who can see it</th><th>Why that's fine</th></tr></thead>
+            <tbody>
+              <tr><td>The app's code (your copy)</td><td>Anyone</td><td>It's the same open code as the original. No documents in it.</td></tr>
+              <tr><td>config.js: your username and vault name</td><td>Anyone</td><td>Knowing the name doesn't let anyone in. The vault is private.</td></tr>
+              <tr><td>config.js: the locked key</td><td>Anyone</td><td>Locked with AES-256 and 600,000 rounds of PBKDF2. Useless without your password, as long as the password is strong.</td></tr>
+              <tr><td>Your documents and clipboard</td><td>Only you</td><td>They live in the private vault. The app talks only to GitHub, with no trackers or other servers.</td></tr>
+              <tr><td>Your password</td><td>Only you</td><td>Never saved and never sent. It unlocks the key inside your browser.</td></tr>
+              <tr><td>The original owner</td><td>Sees nothing of yours</td><td>A fork shares code, not data. Your vault and key are yours alone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="g-small">More detail: <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener">how it works</a> and <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/SECURITY.md" target="_blank" rel="noopener">security notes</a>.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ developers -->
+    <section class="a-wrap g-section" id="dev">
+      <h2>For developers</h2>
+      <p>Plain HTML, CSS and JavaScript modules: no framework, no runtime dependencies. To work on it on your own machine (Node 20 or newer, Python 3):</p>
+      <pre class="g-pre"><code>git clone https://github.com/<span data-f="user">YOUR-USERNAME</span>/<span data-f="repo">a-really-helphul-tool</span>.git
+cd <span data-f="repo">a-really-helphul-tool</span>
+npm install
+npx playwright install chromium
+npm run build
+python3 -m http.server 8080 --directory _site &amp;
+npm test</code></pre>
+      <p>Every check must print <code>ok</code>; screenshots land in <code>tests/screenshots/</code>. New site files must be added to <code>scripts/build-site.sh</code>. Read <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/docs/AI_HANDOFF.md" target="_blank" rel="noopener">docs/AI_HANDOFF.md</a> for the rules of the codebase, and <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">CONTRIBUTING.md</a> if you'd like to send an improvement back.</p>
+
+      <div class="a-ready">
+        <p>Ready? Step 1 is one click.</p>
+        <a class="a-btn a-btn-red a-btn-big" href="https://github.com/GermanyMayank/a-really-helphul-tool/fork" target="_blank" rel="noopener">Fork the project</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="a-foot">
+    <div class="a-wrap a-foot-row">
+      <p><b>a really helpful tool</b> · <span class="version">v4.3.0</span></p>
+      <nav class="a-links" aria-label="Footer">
+        <a href="about.html">About</a>
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool">GitHub</a>
+        <a href="https://github.com/GermanyMayank/a-really-helphul-tool/blob/main/SECURITY.md">Security</a>
+      </nav>
+    </div>
+    <div class="bandhani bandhani-top" aria-hidden="true"></div>
+  </footer>
+
+  <script type="module" src="assets/about.js"></script>
+  <script type="module" src="assets/guide.js"></script>
+</body>
+</html>

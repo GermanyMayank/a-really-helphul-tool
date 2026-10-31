@@ -2,6 +2,8 @@
 
 About 10 minutes, all in the browser. You need a free GitHub account.
 
+The friendlier version of this guide, with a check after every step, troubleshooting and your own links filled in, is the app's **Make your own** page: https://germanymayank.github.io/a-really-helphul-tool/make-your-own.html
+
 Throughout this guide, replace `YOUR-USERNAME` with your GitHub username.
 
 ---

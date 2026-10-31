@@ -3,10 +3,16 @@
 // release (also in package.json and CHANGELOG.md); the What's new window opens
 // once on each device after the version changes.
 
-export const VERSION = "4.2.0";
+export const VERSION = "4.3.0";
 
 // Newest first. Plain text only (rendered with textContent).
 export const RELEASES = [
+  {
+    version: "4.3",
+    items: [
+      ["Make your own", "a step-by-step guide on the About page, so friends can make their own copy with their own private vault in about 15 minutes."],
+    ],
+  },
   {
     version: "4.2",
     items: [

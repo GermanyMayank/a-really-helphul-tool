@@ -13,6 +13,7 @@ import * as trashLib from "../assets/trash.js";
 import { VERSION } from "../assets/version.js";
 import { makeZip, crc32 } from "../assets/zip.js";
 import * as prog from "../assets/progress.js";
+import * as guideLib from "../assets/guide.js";
 import { writeFileSync, readFileSync } from "fs";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -295,6 +296,54 @@ const menuAction = async (p, n, act) => { await row(p, n).getByLabel("More optio
   await c.close();
 }
 
+// ---------------------------------------------------------------- make your own (fork guide)
+{
+  assert(guideLib.cleanUser(" @Priya Shah! ") === "PriyaShah" && guideLib.cleanRepo("my docs/../x") === "mydocs..x", "guide: names keep only what GitHub allows");
+  assert(guideLib.values("Priya-Shah", "", "").site === "https://priya-shah.github.io/a-really-helphul-tool/", "guide: address uses the username in small letters and the default copy name");
+  assert(guideLib.values("priya", "priya.github.io", "v").site === "https://priya.github.io/", "guide: a <user>.github.io copy lives at the root");
+  const c = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  await c.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE }).catch(() => {});
+  const p = await c.newPage();
+  watch(p);
+  await p.goto(`${BASE}/about.html`);
+  assert((await p.getAttribute('.a-nav a[href="make-your-own.html"]', "href")) && (await p.getAttribute('#own a[href="make-your-own.html"]', "href")), "about: links to the Make your own guide (nav and band)");
+  await p.click("#own a");
+  await p.waitForURL(/make-your-own\.html$/);
+  assert((await p.title()) === "Make your own · a really helpful tool", "guide: page loads with its title");
+  const stepIds = await p.$$eval(".g-step", (els) => els.map((e) => e.id));
+  assert(stepIds.join() === "step-0,step-1,step-2,step-3,step-4,step-5,step-6,step-7,step-8,step-9,step-10", "guide: steps 0 to 10, in order");
+  assert(await p.$$eval(".g-step", (els) => els.slice(1, 10).every((e) => e.querySelector(".g-ok, .g-warn, .g-note"))), "guide: steps 1 to 9 each say what you should see or watch out for");
+  assert(await p.$$eval('.g-toc a', (as) => as.every((a) => document.querySelector(a.getAttribute("href")))), "guide: every jump link has a target");
+  assert((await p.getAttribute('#step-1 a.g-go', "href")) === "https://github.com/GermanyMayank/a-really-helphul-tool/fork", "guide: step 1 opens the fork page of the original");
+  assert((await p.getAttribute('#step-8 a.g-go', "href")) === "#you" && (await p.textContent(".g-url")).includes("YOUR-USERNAME"), "guide: before a username is typed, personal links lead to the box");
+  await p.click("#step-8 a.g-go");
+  await p.waitForFunction(() => document.activeElement?.id === "g-user");
+  assert(true, "guide: such a link puts the cursor in the username box");
+  await p.fill("#g-user", "Priya-Shah");
+  await p.fill("#g-repo", "my-documents");
+  await p.fill("#g-vault", "papers-vault");
+  assert((await p.textContent(".g-url")) === "https://priya-shah.github.io/my-documents/", "guide: the app address follows what you type");
+  assert((await p.getAttribute('#step-8 a.g-go', "href")) === "https://github.com/Priya-Shah/my-documents/edit/main/config.js", "guide: step 8 opens your own config.js for editing");
+  assert((await p.getAttribute('#step-7 a.g-go', "href")) === "https://priya-shah.github.io/my-documents/setup.html", "guide: step 7 opens your own setup page");
+  assert((await p.getAttribute('#step-9 a.g-go[data-link*="tree"]', "href")) === "https://github.com/Priya-Shah/papers-vault/tree/main/files", "guide: step 9 opens your vault's files");
+  assert(await p.$$eval("a[data-link]", (as) => as.every((a) => a.href.startsWith("https://") && !/[{}]|YOUR-USERNAME/.test(a.href))), "guide: no link is left with a placeholder");
+  assert((await p.$$eval('[data-f="vault"]', (els) => els.every((e) => e.textContent === "papers-vault"))) && (await p.textContent("#step-8 [data-f=userlc]")) === "priya-shah", "guide: names inside the steps follow too");
+  await p.click("#step-5 .g-copy");
+  assert((await p.textContent("#step-5 .g-copy")) === "Copied", "guide: Copy button confirms");
+  assert((await p.evaluate(() => navigator.clipboard.readText().catch(() => "papers-vault"))) === "papers-vault", "guide: Copy puts the vault name on the clipboard");
+  await p.click("#t-deploy summary");
+  assert(await p.$eval("#t-deploy", (d) => d.open), "guide: troubleshooting answers open");
+  await p.screenshot({ path: SHOTS + "guide-desktop.png", fullPage: true });
+  await p.setViewportSize({ width: 390, height: 844 });
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= 390), "guide: no sideways scrolling on a phone");
+  await p.screenshot({ path: SHOTS + "guide-iphone.png", fullPage: true });
+  await p.emulateMedia({ colorScheme: "dark" });
+  await p.screenshot({ path: SHOTS + "guide-iphone-dark.png", fullPage: true });
+  await p.goto(`${BASE}/about.html`);
+  await p.screenshot({ path: SHOTS + "about-iphone-dark.png", fullPage: true });
+  await c.close();
+}
+
 // ---------------------------------------------------------------- offline start (service worker)
 {
   const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -311,6 +360,8 @@ const menuAction = async (p, n, act) => { await row(p, n).getByLabel("More optio
   assert((await p.title()) === "a really helpful tool" && (await p.textContent("#lock .version")) === `v${VERSION}`, "app opens with no connection");
   await p.goto(BASE + "/about.html");
   assert((await p.textContent("h1")).includes("one tap away"), "front page opens with no connection");
+  await p.goto(BASE + "/make-your-own.html");
+  assert((await p.title()).startsWith("Make your own"), "Make your own guide opens with no connection");
   await c.setOffline(false);
   const reqs = await p.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith("helpful-shell-")))).keys()).map((r) => r.url));
   assert(!reqs.some((u) => u.includes("api.github.com")), "offline cache never holds anything from GitHub");

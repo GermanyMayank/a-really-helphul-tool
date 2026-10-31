@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.3.0 (2026-10-31) - Make your own
+
+- New page `make-your-own.html`: a click-by-click guide for anyone who wants their own copy (fork, Actions, Pages, private vault, fine-grained token, setup, config.js, phones), with "you should now see" checks after every step, getting new versions with Sync fork, everyday questions, troubleshooting for every setup message, and what is public vs private
+- Type your GitHub username, copy name and vault name once and every link and address on the page becomes yours; Copy buttons for names. Nothing is stored or sent (`connect-src 'none'`)
+- Linked from the front page (nav, a "Want one for yourself?" band, footer); available offline like the front page
+- Front page: dark mode fixes (readable text, cards, buttons)
+
 ## 4.2.0 - Instant
 
 New core principle: **instant first, network second** (see `docs/DESIGN-PRINCIPLES.md`).

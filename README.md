@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="260 browser checks" src="https://img.shields.io/badge/browser_checks-260-a3201b" />
+  <img alt="282 browser checks" src="https://img.shields.io/badge/browser_checks-282-a3201b" />
   <img alt="Runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-a3201b" />
   <img alt="Hosting" src="https://img.shields.io/badge/hosting-GitHub_Pages-1c1414" />
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-e3a21a" /></a>
@@ -11,7 +11,7 @@
 <h3 align="center">
   <a href="https://germanymayank.github.io/a-really-helphul-tool/">Open the app</a>
   &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="docs/SETUP.md">Make your own</a>
+  <a href="https://germanymayank.github.io/a-really-helphul-tool/make-your-own.html">Make your own</a>
   &nbsp;&nbsp;|&nbsp;&nbsp;
   <a href="docs/ARCHITECTURE.md">How it works</a>
 </h3>
@@ -81,7 +81,7 @@ More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Found a problem? See [SECU
 4. Open `https://<you>.github.io/<your-fork>/setup.html`, paste the token, choose a password, and paste the result into `config.js`.
 5. Open the app on any device and unlock.
 
-Every step, click by click: **[docs/SETUP.md](docs/SETUP.md)**. To get new versions later, press **Sync fork** on your repo page.
+Every step, click by click, with your own links filled in: **[the Make your own guide](https://germanymayank.github.io/a-really-helphul-tool/make-your-own.html)** (or [docs/SETUP.md](docs/SETUP.md) in the repo). To get new versions later, press **Sync fork** on your repo page.
 
 ## For developers
 
@@ -91,6 +91,7 @@ Plain HTML, CSS and JavaScript modules, no framework and no build step. Read `as
 index.html            the app
 sw.js                 offline start: keeps the app (never your documents) on the device
 about.html            public front page: what the app is, how it works
+make-your-own.html    click-by-click guide to making your own copy
 setup.html            one-time setup: encrypts your token into config.js
 config.js             the only file a user edits
 assets/
@@ -107,12 +108,13 @@ assets/
   crypto.js           token encryption
   style.css           all styles and colour tokens
   about.css, about.js the front page
+  guide.js            fills the reader's names into the Make your own guide
   fonts/              Bricolage Grotesque for headings (SIL OFL)
 scripts/
   build-site.sh       copies the site and cache-busts it for deploy
   screenshots.mjs     README screenshots from a fake vault
   compose-images.mjs  frames them into the README images
-tests/e2e.mjs         260 browser checks against a fake GitHub
+tests/e2e.mjs         282 browser checks against a fake GitHub
 .github/workflows/    test on every push, deploy to Pages when green
 ```
 

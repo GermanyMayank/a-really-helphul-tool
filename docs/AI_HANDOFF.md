@@ -31,6 +31,7 @@ Read `docs/DESIGN-PRINCIPLES.md` first: instant first, network second.
 - `assets/trash.js` - pure Trash helpers (names with a UTC stamp, 30-day rule, free names on restore). Deleting moves a file to `.trash/` via `Vault.moveToTrash`; see ARCHITECTURE.md.
 - `assets/version.js` - `VERSION` and the What's new notes. Bump it (and `package.json`, `CHANGELOG.md`) with every release.
 - `about.html` + `assets/about.css` - the public front page. Keep it static; it must never load the vault.
+- `make-your-own.html` + `assets/guide.js` - the fork guide. Static, no network, no storage. If setup steps, setup.html messages or the CI change, update this page too.
 - `sw.js` - service worker for offline start. Only same-origin GETs; never cache anything from api.github.com. Its version and file list are filled in by `scripts/build-site.sh`.
 - `assets/zip.js` - pure zip writer for Backup.
 - `assets/blobs.js` - file cache and prefetch. Keyed by sha; cleared on lock.
