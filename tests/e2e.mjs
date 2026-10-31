@@ -329,6 +329,7 @@ const menuAction = async (p, n, act) => { await row(p, n).getByLabel("More optio
   assert(await p.$$eval("a[data-link]", (as) => as.every((a) => a.href.startsWith("https://") && !/[{}]|YOUR-USERNAME/.test(a.href))), "guide: no link is left with a placeholder");
   assert((await p.$$eval('[data-f="vault"]', (els) => els.every((e) => e.textContent === "papers-vault"))) && (await p.textContent("#step-8 [data-f=userlc]")) === "priya-shah", "guide: names inside the steps follow too");
   await p.click("#step-5 .g-copy");
+  await p.waitForFunction(() => document.querySelector("#step-5 .g-copy").textContent === "Copied", null, { timeout: 5000 }).catch(() => {});
   assert((await p.textContent("#step-5 .g-copy")) === "Copied", "guide: Copy button confirms");
   assert((await p.evaluate(() => navigator.clipboard.readText().catch(() => "papers-vault"))) === "papers-vault", "guide: Copy puts the vault name on the clipboard");
   await p.click("#t-deploy summary");
