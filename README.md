@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/GermanyMayank/a-really-helphul-tool/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="223 browser checks" src="https://img.shields.io/badge/browser_checks-223-a3201b" />
+  <img alt="226 browser checks" src="https://img.shields.io/badge/browser_checks-226-a3201b" />
   <img alt="Runtime dependencies" src="https://img.shields.io/badge/runtime_dependencies-0-a3201b" />
   <img alt="Hosting" src="https://img.shields.io/badge/hosting-GitHub_Pages-1c1414" />
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-e3a21a" /></a>
@@ -112,7 +112,7 @@ scripts/
   build-site.sh       copies the site and cache-busts it for deploy
   screenshots.mjs     README screenshots from a fake vault
   compose-images.mjs  frames them into the README images
-tests/e2e.mjs         223 browser checks against a fake GitHub
+tests/e2e.mjs         226 browser checks against a fake GitHub
 .github/workflows/    test on every push, deploy to Pages when green
 ```
 

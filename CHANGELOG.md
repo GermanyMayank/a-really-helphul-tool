@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.1 (2026-10-31) - smoother
+
+- Upload bar glides frame by frame (requestAnimationFrame, 60-120 fps) instead of jumping: even an instant upload fills over about half a second, and while GitHub saves a file the bar keeps creeping (never past that file's share) instead of sitting still
+- The bar moves with `transform` only (no layout per frame); the "saving" stripes slide with a transform animation too
+- Windows, the actions menu and messages now slide and fade in; tabs fade between each other; rows in the upload list, Trash and What's new rise in; buttons press in slightly. All GPU-only (transform/opacity), and off when the device asks for reduced motion
+- Tests: 226 checks, including a frame-rate check on the bar
+
 ## 4.1.0 (2026-10-30) - upload progress bar
 
 - One bar for the whole batch under the header: "Uploading 2 of 5 · 48% · about 20 s left", weighted by file size

@@ -386,6 +386,15 @@ for (const [label, opts, device] of [
   await p.waitForSelector("#upbar:not([hidden])");
   await p.waitForFunction(() => /^Uploading 1 of 2/.test(document.getElementById("upbar-text").textContent));
   assert(true, `${label}: the bar says which file of how many`);
+  // smoothness: the bar moves on every frame while it catches up, not in jumps
+  const fps = await p.evaluate(() => new Promise((res) => {
+    const fill = document.getElementById("upbar-fill"); let frames = 0, moved = 0, last = fill.style.transform; const t0 = performance.now();
+    const tick = () => { frames++; if (fill.style.transform !== last) { moved++; last = fill.style.transform; }
+      if (performance.now() - t0 < 600) requestAnimationFrame(tick); else res({ fps: Math.round(frames / ((performance.now() - t0) / 1000)), moved }); };
+    requestAnimationFrame(tick);
+  }));
+  assert(fps.fps >= 40 && fps.moved >= 5, `${label}: bar animates frame by frame (${fps.fps} fps, ${fps.moved} frames moved)`);
+  assert(await p.evaluate(() => !/width/.test(getComputedStyle(document.getElementById("upbar-fill")).transitionProperty) && document.getElementById("upbar-fill").style.width === ""), `${label}: bar moves with transform only (no layout per frame)`);
   assert(await p.evaluate(() => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; }), `${label}: leaving the page mid-upload asks first`);
   await p.screenshot({ path: SHOTS + `${label}-8-upload.png` });
   await p.waitForFunction(() => document.getElementById("upbar-text").textContent === "Uploaded 2 of 2", null, { timeout: 15000 });

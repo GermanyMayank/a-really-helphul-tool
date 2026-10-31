@@ -372,11 +372,9 @@ function uploadAll(list, via = "upload") {
     // a new session starts from an empty bar, without sliding back from the last one
     upItems = [];
     upStarted = Date.now();
-    const fill = $("upbar-fill");
-    fill.classList.add("instant");
-    fill.style.width = "0%";
-    void fill.offsetWidth;
-    fill.classList.remove("instant");
+    $("upbar").classList.remove("finished", "leaving");
+    barShown = barTarget = 0;
+    paintBar();
   }
   for (const file of list) upItems.push(queueRow({ file, via, size: file.size, state: "waiting", sent: 0 }));
   renderUpBar();
@@ -396,7 +394,6 @@ async function runUploads() {
   const p = sessionProgress(upItems, upStarted);
   renderUpBar(true);
   if (upItems.some((i) => i.state !== "cancelled")) announce(summaryText(p, true));
-  upHideTimer = setTimeout(() => { $("upbar").hidden = true; }, p.failed ? 6000 : 2500);
   if (ok) {
     toast(`${ok} file${ok > 1 ? "s" : ""} uploaded`);
     await loadFiles({ quiet: true });
@@ -479,19 +476,83 @@ function finishItem(item, state, text, ms) {
 }
 
 // ----- the bar -----
+// The real numbers can jump (a small file is sent in a few milliseconds), so
+// the bar never shows them directly: a requestAnimationFrame loop glides the
+// shown value towards the real one, so it moves on every frame (60-120 fps).
+// Only transform and opacity change, which the browser draws on the GPU.
+const BAR_MIN_MS = 450;          // even an instant upload fills over at least this long
+let barShown = 0;                // what the bar shows now, 0..100
+let barTarget = 0;               // the real progress, 0..100
+let barCeil = 0;                 // creep limit while waiting (end of the current file)
+let barFrame = 0;
+let barLast = 0;
+let barFinished = false;
+let barText = "";
+
 function renderUpBar(finished = false) {
   if (!upItems.length) return;
   const p = sessionProgress(upItems, upStarted);
   if (!finished && !upItems.some((i) => !isFinished(i))) finished = true;
-  if (upItems.every((i) => i.state === "cancelled")) { $("upbar").hidden = true; return; }
-  $("upbar").hidden = false;
-  $("upbar").classList.toggle("finished", finished);
-  $("upbar").classList.toggle("has-failed", finished && p.failed > 0);
-  $("upbar-text").textContent = summaryText(p, finished);
-  $("upbar-track").setAttribute("aria-valuenow", String(p.pct));
-  $("upbar-track").setAttribute("aria-valuetext", summaryText(p, finished));
-  $("upbar-fill").style.width = `${p.pct}%`;
+  if (upItems.every((i) => i.state === "cancelled")) { hideUpBar(); return; }
+  const bar = $("upbar");
+  if (bar.hidden) { bar.hidden = false; bar.classList.remove("leaving"); }
+  barTarget = p.pct;
+  // how far the bar may creep while it waits for the file in progress (GitHub
+  // takes a moment to save each commit): never past where that file ends
+  const cur = upItems.findIndex((i) => !isFinished(i));
+  barCeil = cur < 0 ? p.pct : Math.max(p.pct, sessionProgress(upItems.map((i, n) => (n === cur ? { ...i, state: "done" } : i)), upStarted).pct - 1);
+  barFinished = finished;
+  barText = summaryText(p, finished);
+  bar.classList.toggle("has-failed", finished && p.failed > 0);
   $("upbar-cancel").hidden = finished;
+  $("upbar-track").setAttribute("aria-valuenow", String(p.pct));
+  $("upbar-track").setAttribute("aria-valuetext", barText);
+  if (!barFrame) { barLast = performance.now(); barFrame = requestAnimationFrame(barTick); }
+}
+
+function barTick(now) {
+  if ($("upbar").hidden || $("upbar").classList.contains("leaving")) { barFrame = 0; return; }
+  const dt = Math.min(64, now - barLast);
+  barLast = now;
+  const gap = barTarget - barShown;
+  // ease out: cover ~1/4 of the gap every ~16 ms, but never slower than 100 % per BAR_MIN_MS
+  const step = Math.max(gap * (1 - Math.exp(-dt / 70)), Math.min(gap, (100 / BAR_MIN_MS) * dt * 0.35));
+  if (gap > 0.05) barShown += step;
+  else if (!barFinished && barCeil > barShown) barShown += (barCeil - barShown) * (1 - Math.exp(-dt / 1800)); // slow creep, never reaches the ceiling
+  else barShown = Math.max(barShown, barTarget);
+  paintBar();
+  if (!barFinished || barShown < barTarget - 0.05) {
+    barFrame = requestAnimationFrame(barTick);
+    return;
+  }
+  barShown = barTarget;
+  paintBar();
+  barFrame = 0;
+  // done: let the full bar register, then slide away
+  $("upbar").classList.add("finished");
+  clearTimeout(upHideTimer);
+  upHideTimer = setTimeout(hideUpBar, $("upbar").classList.contains("has-failed") ? 6000 : 1200);
+}
+
+function paintBar() {
+  const shown = Math.round(barShown);
+  // the fill is full width and slides in from the left: translateX only, no layout
+  $("upbar-fill").style.transform = `translateX(${barShown - 100}%)`;
+  // while uploading, the text counts along with the bar; at the end it shows the summary
+  $("upbar-text").textContent = barFinished && shown >= barTarget ? barText : barText.replace(/\d+%/, `${shown}%`);
+}
+
+function hideUpBar() {
+  const bar = $("upbar");
+  if (bar.hidden) return;
+  bar.classList.add("leaving");
+  setTimeout(() => {
+    if (!bar.classList.contains("leaving")) return; // a new upload started meanwhile
+    bar.hidden = true;
+    bar.classList.remove("leaving", "finished");
+    barShown = barTarget = 0;
+    paintBar();
+  }, 260);
 }
 
 function announce(text) { $("upbar-live").textContent = text; }

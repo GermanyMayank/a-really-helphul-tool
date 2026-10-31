@@ -189,31 +189,35 @@ body[data-view="clips"] .btn-upload { display: none; }
 .queue .state { font-variant-numeric: tabular-nums; }
 /* a thin bar along the bottom of each row */
 .qbar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); }
-.qbar-fill { display: block; height: 100%; background: var(--kumkum); transform: scaleX(0); transform-origin: left; transition: transform .2s; }
+.qbar-fill { display: block; height: 100%; background: var(--kumkum); transform: scaleX(0); transform-origin: left; transition: transform .35s cubic-bezier(.2,.8,.2,1); will-change: transform; }
+.queue li { animation: rise-in .25s cubic-bezier(.2,.8,.2,1) both; }
 .queue li.saving .qbar-fill { background: var(--haldi); }
 
 /* ---------- Upload bar (v4.1): the whole batch at a glance ---------- */
 .upbar {
   position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 3;
   margin: 0 0 10px; padding: 12px 14px 14px; border-radius: 16px; background: var(--surface); box-shadow: var(--lift);
+  animation: rise-in .28s cubic-bezier(.2,.8,.2,1);
 }
+.upbar.leaving { animation: rise-out .26s ease-in forwards; }
 .upbar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .upbar-text { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
 .upbar .link-btn { min-height: 32px; }
-.upbar-track { position: relative; height: 10px; border-radius: 999px; background: var(--kumkum-soft); overflow: hidden; }
+.upbar-track { position: relative; height: 10px; border-radius: 999px; background: var(--kumkum-soft); overflow: hidden; isolation: isolate; }
+/* full-width fill moved with translateX by app.js (GPU only, no layout per frame) */
 .upbar-fill {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 0; min-width: 10px; border-radius: inherit; background: var(--kumkum);
-  transition: width .25s ease-out;
+  position: absolute; inset: 0; border-radius: inherit; background: var(--kumkum); overflow: hidden;
+  transform: translateX(-100%); will-change: transform;
 }
-.upbar-fill.instant { transition: none; }
 /* haldi leading edge */
 .upbar-fill::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 10px; border-radius: 999px; background: var(--haldi); }
-/* while GitHub saves the last file there is nothing to count: a slow moving stripe instead of a stuck bar */
-.upbar:has(~ .queue li.saving) .upbar-fill {
-  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.22) 0 8px, transparent 8px 16px);
-  background-size: 23px 23px; animation: upbar-stripe 1s linear infinite;
+/* while GitHub saves: light stripes slide across (transform animation, also GPU only) */
+.upbar-fill::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -32px; right: 0; opacity: 0; transition: opacity .3s;
+  background: repeating-linear-gradient(-45deg, rgba(255,255,255,.24) 0 8px, transparent 8px 16px);
 }
-@keyframes upbar-stripe { to { background-position: 23px 0; } }
+.upbar:has(~ .queue li.saving) .upbar-fill::before { opacity: 1; animation: upbar-stripe .9s linear infinite; }
+@keyframes upbar-stripe { from { transform: translateX(0); } to { transform: translateX(22.6px); } }
 .upbar.finished .upbar-fill::after { display: none; }
 .upbar.finished:not(.has-failed) .upbar-text { color: var(--muted); }
 .upbar.has-failed .upbar-fill { background: var(--danger); }
@@ -583,6 +587,30 @@ textarea.input { height: 260px; padding: 12px; font: 12px/1.5 ui-monospace, Menl
 @media (prefers-color-scheme: dark) and (max-width: 719px) {
   .btn-upload { box-shadow: 0 0 0 4px var(--page), 0 0 0 6px var(--haldi), 0 16px 30px rgba(0,0,0,.5); }
 }
+
+/* ---------- Motion (v4.1.1): everything slides or fades with transform and
+   opacity only, which the GPU draws at the screen's own rate (60-120 fps).
+   @starting-style animates elements as their `hidden` attribute is removed. ---------- */
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes rise-out { to { opacity: 0; transform: translateY(-6px); } }
+.modal { transition: opacity .2s ease-out; }
+.modal .modal-box { transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease-out; }
+@starting-style {
+  .modal { opacity: 0; }
+  .modal .modal-box { opacity: 0; transform: translateY(14px) scale(.97); }
+}
+@media (max-width: 600px) {
+  @starting-style { .modal .modal-list { transform: translateY(40px); } }
+}
+.toast { transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease-out; }
+@starting-style { .toast { opacity: 0; transform: translate(-50%, 16px); } }
+.menu { transform-origin: top right; transition: transform .16s cubic-bezier(.2,.8,.2,1), opacity .14s ease-out; }
+@starting-style { .menu { opacity: 0; transform: scale(.94); } }
+#docs-view:not([hidden]), #clip-view:not([hidden]) { animation: fade-in .22s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } }
+.trash-item, .release { animation: rise-in .25s cubic-bezier(.2,.8,.2,1) both; }
+.btn, .icon-btn, .chip, .tab, .foot-link, .file { transition: background-color .15s, color .15s, transform .12s, opacity .15s; }
+.btn:active, .icon-btn:active, .chip:active { transform: scale(.97); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
